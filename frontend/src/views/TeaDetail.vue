@@ -24,18 +24,68 @@
             <el-tag type="info" size="large">{{ tea.originRegion }}</el-tag>
             <el-tag v-if="tea.harvestYear" size="large">{{ tea.harvestYear }}年</el-tag>
           </div>
-          <el-descriptions :column="2" class="tea-desc">
-            <el-descriptions-item label="储存方式">{{ tea.storageMethod || '未设置' }}</el-descriptions-item>
-            <el-descriptions-item label="现有存量">{{ tea.currentStock || 0 }} {{ tea.stockUnit }}</el-descriptions-item>
-            <el-descriptions-item label="创建时间">{{ formatTime(tea.createdAt) }}</el-descriptions-item>
-            <el-descriptions-item label="更新时间">{{ formatTime(tea.updatedAt) }}</el-descriptions-item>
-            <el-descriptions-item label="描述" :span="2">{{ tea.description || '暂无描述' }}</el-descriptions-item>
-          </el-descriptions>
+        </div>
+      </div>
+
+      <el-divider />
+
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="summary-icon">📦</div>
+          <div class="summary-content">
+            <div class="summary-label">库存</div>
+            <div class="summary-value">{{ tea.currentStock || 0 }} {{ tea.stockUnit }}</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-icon">📅</div>
+          <div class="summary-content">
+            <div class="summary-label">年份</div>
+            <div class="summary-value">{{ tea.harvestYear || '未记录' }}</div>
+          </div>
+        </div>
+        <div class="summary-card" v-if="defaultBrewing">
+          <div class="summary-icon">☕</div>
+          <div class="summary-content">
+            <div class="summary-label">默认水温</div>
+            <div class="summary-value">{{ defaultBrewing.waterTemperature }}℃</div>
+          </div>
+        </div>
+        <div class="summary-card" v-if="defaultBrewing">
+          <div class="summary-icon">🍃</div>
+          <div class="summary-content">
+            <div class="summary-label">默认投茶量</div>
+            <div class="summary-value">{{ defaultBrewing.teaAmount }}克</div>
+          </div>
+        </div>
+        <div class="summary-card" v-if="defaultBrewing">
+          <div class="summary-icon">⏱️</div>
+          <div class="summary-content">
+            <div class="summary-label">默认冲泡方案</div>
+            <div class="summary-value">{{ defaultBrewing.paramName || '默认方案' }}</div>
+          </div>
         </div>
       </div>
     </el-card>
 
     <el-tabs v-model="activeTab" class="detail-tabs">
+      <el-tab-pane label="基础档案" name="basic">
+        <div class="tab-header">
+          <span class="section-title">基础档案信息</span>
+        </div>
+        <el-descriptions :column="2" border class="basic-desc">
+          <el-descriptions-item label="茶品名称">{{ tea.name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="茶类">{{ tea.teaCategory || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="产区">{{ tea.originRegion || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="采摘年份">{{ tea.harvestYear || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="储存方式">{{ tea.storageMethod || '未设置' }}</el-descriptions-item>
+          <el-descriptions-item label="现有存量">{{ tea.currentStock || 0 }} {{ tea.stockUnit }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ formatTime(tea.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item label="更新时间">{{ formatTime(tea.updatedAt) }}</el-descriptions-item>
+          <el-descriptions-item label="描述" :span="2">{{ tea.description || '暂无描述' }}</el-descriptions-item>
+        </el-descriptions>
+      </el-tab-pane>
+
       <el-tab-pane label="冲泡参数" name="brewing">
         <div class="tab-header">
           <span class="section-title">冲泡参数设置</span>
@@ -92,9 +142,9 @@
         <el-empty v-if="brewingParams.length === 0" description="暂无冲泡参数，快来添加吧" />
       </el-tab-pane>
 
-      <el-tab-pane label="仓储状态" name="storage">
+      <el-tab-pane label="仓储记录" name="storage">
         <div class="tab-header">
-          <span class="section-title">仓储状态更新</span>
+          <span class="section-title">仓储记录</span>
           <el-button type="primary" size="small" @click="openStorageDialog()">添加记录</el-button>
         </div>
         <el-table :data="storageRecords" stripe style="width:100%">
@@ -124,9 +174,9 @@
         <el-empty v-if="storageRecords.length === 0" description="暂无仓储记录" />
       </el-tab-pane>
 
-      <el-tab-pane label="品饮记录" name="tasting">
+      <el-tab-pane label="品鉴笔记" name="tasting">
         <div class="tab-header">
-          <span class="section-title">品饮体感备注</span>
+          <span class="section-title">品鉴笔记</span>
           <el-button type="primary" size="small" @click="openTastingDialog()">添加记录</el-button>
         </div>
         <el-row :gutter="16">
@@ -347,7 +397,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -364,7 +414,11 @@ const router = useRouter()
 const teaId = route.params.id
 const loading = ref(false)
 const saving = ref(false)
-const activeTab = ref('brewing')
+const activeTab = ref('basic')
+
+const defaultBrewing = computed(() => {
+  return brewingParams.value.find(p => p.isDefault) || brewingParams.value[0] || null
+})
 
 const tea = ref({})
 const brewingParams = ref([])
@@ -596,8 +650,57 @@ onMounted(loadTea)
   flex-wrap: wrap;
 }
 
+.summary-cards {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.summary-card {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 12px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.summary-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.summary-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-label {
+  font-size: 13px;
+  color: #6c757d;
+  margin-bottom: 4px;
+}
+
+.summary-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1b4332;
+}
+
+.basic-desc {
+  margin-top: 16px;
+}
+
 .detail-tabs {
-  margin-top: 4px;
+  margin-top: 20px;
 }
 
 .tab-header {
