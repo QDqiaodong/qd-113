@@ -45,9 +45,13 @@ public class BrewingParamService {
     }
 
     @Transactional
-    public BrewingParamResponse updateBrewingParam(Long id, BrewingParamRequest request) {
+    public BrewingParamResponse updateBrewingParam(Long teaId, Long id, BrewingParamRequest request) {
         BrewingParam param = brewingParamRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("冲泡参数不存在: " + id));
+
+        if (!param.getTea().getId().equals(teaId)) {
+            throw new IllegalArgumentException("冲泡参数不属于当前茶叶");
+        }
 
         if (Boolean.TRUE.equals(request.getIsDefault()) && !Boolean.TRUE.equals(param.getIsDefault())) {
             brewingParamRepository.findByTeaIdAndIsDefaultTrue(param.getTea().getId())
@@ -63,11 +67,15 @@ public class BrewingParamService {
     }
 
     @Transactional
-    public void deleteBrewingParam(Long id) {
-        if (!brewingParamRepository.existsById(id)) {
-            throw new EntityNotFoundException("冲泡参数不存在: " + id);
+    public void deleteBrewingParam(Long teaId, Long id) {
+        BrewingParam param = brewingParamRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("冲泡参数不存在: " + id));
+
+        if (!param.getTea().getId().equals(teaId)) {
+            throw new IllegalArgumentException("冲泡参数不属于当前茶叶");
         }
-        brewingParamRepository.deleteById(id);
+
+        brewingParamRepository.delete(param);
     }
 
     @Transactional(readOnly = true)
@@ -79,9 +87,14 @@ public class BrewingParamService {
     }
 
     @Transactional(readOnly = true)
-    public BrewingParamResponse getBrewingParamById(Long id) {
+    public BrewingParamResponse getBrewingParamById(Long teaId, Long id) {
         BrewingParam param = brewingParamRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("冲泡参数不存在: " + id));
+
+        if (!param.getTea().getId().equals(teaId)) {
+            throw new IllegalArgumentException("冲泡参数不属于当前茶叶");
+        }
+
         return toResponse(param);
     }
 

@@ -39,20 +39,29 @@ public class TastingNoteService {
     }
 
     @Transactional
-    public TastingNoteResponse updateTastingNote(Long id, TastingNoteRequest request) {
+    public TastingNoteResponse updateTastingNote(Long teaId, Long id, TastingNoteRequest request) {
         TastingNote note = tastingNoteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("品饮记录不存在: " + id));
+
+        if (!note.getTea().getId().equals(teaId)) {
+            throw new IllegalArgumentException("品饮记录不属于当前茶叶");
+        }
+
         mapRequestToEntity(request, note);
         TastingNote updated = tastingNoteRepository.save(note);
         return toResponse(updated);
     }
 
     @Transactional
-    public void deleteTastingNote(Long id) {
-        if (!tastingNoteRepository.existsById(id)) {
-            throw new EntityNotFoundException("品饮记录不存在: " + id);
+    public void deleteTastingNote(Long teaId, Long id) {
+        TastingNote note = tastingNoteRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("品饮记录不存在: " + id));
+
+        if (!note.getTea().getId().equals(teaId)) {
+            throw new IllegalArgumentException("品饮记录不属于当前茶叶");
         }
-        tastingNoteRepository.deleteById(id);
+
+        tastingNoteRepository.delete(note);
     }
 
     @Transactional(readOnly = true)

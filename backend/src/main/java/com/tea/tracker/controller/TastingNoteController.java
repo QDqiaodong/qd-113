@@ -29,12 +29,12 @@ public class TastingNoteController {
             @PathVariable Long teaId,
             @PathVariable Long id,
             @Valid @RequestBody TastingNoteRequest request) {
-        return ApiResponse.success(tastingNoteService.updateTastingNote(id, request));
+        return ApiResponse.success(tastingNoteService.updateTastingNote(teaId, id, request));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteTastingNote(@PathVariable Long teaId, @PathVariable Long id) {
-        tastingNoteService.deleteTastingNote(id);
+        tastingNoteService.deleteTastingNote(teaId, id);
         return ApiResponse.success("删除成功", null);
     }
 

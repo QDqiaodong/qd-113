@@ -45,20 +45,29 @@ public class StorageRecordService {
     }
 
     @Transactional
-    public StorageRecordResponse updateStorageRecord(Long id, StorageRecordRequest request) {
+    public StorageRecordResponse updateStorageRecord(Long teaId, Long id, StorageRecordRequest request) {
         StorageRecord record = storageRecordRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("仓储记录不存在: " + id));
+
+        if (!record.getTea().getId().equals(teaId)) {
+            throw new IllegalArgumentException("仓储记录不属于当前茶叶");
+        }
+
         mapRequestToEntity(request, record);
         StorageRecord updated = storageRecordRepository.save(record);
         return toResponse(updated);
     }
 
     @Transactional
-    public void deleteStorageRecord(Long id) {
-        if (!storageRecordRepository.existsById(id)) {
-            throw new EntityNotFoundException("仓储记录不存在: " + id);
+    public void deleteStorageRecord(Long teaId, Long id) {
+        StorageRecord record = storageRecordRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("仓储记录不存在: " + id));
+
+        if (!record.getTea().getId().equals(teaId)) {
+            throw new IllegalArgumentException("仓储记录不属于当前茶叶");
         }
-        storageRecordRepository.deleteById(id);
+
+        storageRecordRepository.delete(record);
     }
 
     @Transactional(readOnly = true)

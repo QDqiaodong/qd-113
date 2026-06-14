@@ -32,12 +32,12 @@ public class BrewingParamController {
             @PathVariable Long teaId,
             @PathVariable Long id,
             @Valid @RequestBody BrewingParamRequest request) {
-        return ApiResponse.success(brewingParamService.updateBrewingParam(id, request));
+        return ApiResponse.success(brewingParamService.updateBrewingParam(teaId, id, request));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteBrewingParam(@PathVariable Long teaId, @PathVariable Long id) {
-        brewingParamService.deleteBrewingParam(id);
+        brewingParamService.deleteBrewingParam(teaId, id);
         return ApiResponse.success("删除成功", null);
     }
 
@@ -49,7 +49,7 @@ public class BrewingParamController {
     @GetMapping("/{id}")
     public ApiResponse<BrewingParamResponse> getBrewingParamById(
             @PathVariable Long teaId, @PathVariable Long id) {
-        return ApiResponse.success(brewingParamService.getBrewingParamById(id));
+        return ApiResponse.success(brewingParamService.getBrewingParamById(teaId, id));
     }
 
     @GetMapping("/template")

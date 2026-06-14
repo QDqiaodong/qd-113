@@ -29,12 +29,12 @@ public class StorageRecordController {
             @PathVariable Long teaId,
             @PathVariable Long id,
             @Valid @RequestBody StorageRecordRequest request) {
-        return ApiResponse.success(storageRecordService.updateStorageRecord(id, request));
+        return ApiResponse.success(storageRecordService.updateStorageRecord(teaId, id, request));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteStorageRecord(@PathVariable Long teaId, @PathVariable Long id) {
-        storageRecordService.deleteStorageRecord(id);
+        storageRecordService.deleteStorageRecord(teaId, id);
         return ApiResponse.success("删除成功", null);
     }
 
