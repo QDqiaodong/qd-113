@@ -282,9 +282,9 @@ async function handleSubmit() {
       const res = await createTea(form.value)
       teaId = res.data.id
       ElMessage.success('创建成功')
-    }
-    if (brewingForm.value.waterTemperature) {
-      await createBrewingParam(teaId, brewingForm.value)
+      if (brewingForm.value.waterTemperature) {
+        await createBrewingParam(teaId, brewingForm.value)
+      }
     }
     router.push(`/tea/${teaId}`)
   } finally {

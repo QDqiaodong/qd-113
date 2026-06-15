@@ -51,7 +51,7 @@
             </div>
             <div class="tea-info">
               <span v-if="tea.harvestYear">{{ tea.harvestYear }}年</span>
-              <span v-if="tea.currentStock">{{ tea.currentStock }}{{ tea.stockUnit }}</span>
+              <span v-if="tea.currentStock != null">{{ tea.currentStock }}{{ tea.stockUnit }}</span>
             </div>
           </div>
         </el-card>
