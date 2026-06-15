@@ -103,6 +103,7 @@
                 <span class="param-name">{{ param.paramName || '冲泡方案' }}</span>
                 <div>
                   <el-tag v-if="param.isDefault" type="success" size="small">默认</el-tag>
+                  <el-button size="small" text type="primary" @click="openCurveDialog(param)">查看曲线</el-button>
                   <el-button size="small" text type="primary" @click="openBrewingDialog(param)">编辑</el-button>
                   <el-button size="small" text type="danger" @click="handleDeleteBrewing(param.id)">删除</el-button>
                 </div>
@@ -318,6 +319,21 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="curveDialogVisible" :title="`${editingCurveParam?.paramName || '冲泡方案'} - 冲泡曲线`" width="900px" destroy-on-close>
+      <BrewingCurveEditor 
+        v-if="curveEditingParam"
+        :brewing-param="curveEditingParam"
+        :editable="true"
+        :auto-sync="false"
+        @update:brewing-param="curveEditingParam = $event"
+        @curve-change="handleCurveChange"
+      />
+      <template #footer>
+        <el-button @click="closeCurveDialog">取消</el-button>
+        <el-button type="primary" @click="handleSaveCurve" :loading="saving">保存曲线</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="storageDialogVisible" :title="editingStorage ? '编辑仓储记录' : '添加仓储记录'" width="600px" destroy-on-close>
       <el-form :model="storageForm" label-width="100px">
         <el-form-item label="储存位置">
@@ -433,7 +449,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -444,6 +460,8 @@ import {
   getTastingNotes, createTastingNote, updateTastingNote, deleteTastingNote
 } from '../api/tea'
 import { SEAL_CONDITIONS, WATER_QUALITY_OPTIONS, BREWING_METHODS } from '../utils/constants'
+import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
+import { useBrewingCurveStore } from '../store/brewingCurve'
 
 const route = useRoute()
 const router = useRouter()
@@ -451,6 +469,12 @@ const teaId = route.params.id
 const loading = ref(false)
 const saving = ref(false)
 const activeTab = ref('basic')
+
+const { setCurveData, clearCurveData, getBrewingParamFromCurve } = useBrewingCurveStore()
+
+const curveDialogVisible = ref(false)
+const editingCurveParam = ref(null)
+const curveEditingParam = ref(null)
 
 const defaultBrewing = computed(() => {
   return brewingParams.value.find(p => p.isDefault) || brewingParams.value[0] || null
@@ -583,6 +607,46 @@ async function handleDeleteBrewing(id) {
   brewingParams.value = res.data || []
 }
 
+function openCurveDialog(param) {
+  editingCurveParam.value = param
+  curveEditingParam.value = { ...param }
+  setCurveData(curveEditingParam.value)
+  curveDialogVisible.value = true
+}
+
+function closeCurveDialog() {
+  curveDialogVisible.value = false
+  editingCurveParam.value = null
+  curveEditingParam.value = null
+  clearCurveData()
+}
+
+function handleCurveChange(change) {
+  setCurveData(curveEditingParam.value)
+}
+
+async function handleSaveCurve() {
+  if (!editingCurveParam.value || !curveEditingParam.value) return
+  
+  saving.value = true
+  try {
+    const updateData = {
+      ...curveEditingParam.value
+    }
+    
+    await updateBrewingParam(teaId, editingCurveParam.value.id, updateData)
+    ElMessage.success('曲线保存成功')
+    curveDialogVisible.value = false
+    
+    const res = await getBrewingParams(teaId)
+    brewingParams.value = res.data || []
+    
+    clearCurveData()
+  } finally {
+    saving.value = false
+  }
+}
+
 function openStorageDialog(record = null) {
   editingStorage.value = record
   storageForm.value = record ? { ...record } : {
@@ -653,6 +717,10 @@ async function handleDeleteTasting(id) {
 }
 
 onMounted(loadTea)
+
+onUnmounted(() => {
+  clearCurveData()
+})
 </script>
 
 <style scoped>

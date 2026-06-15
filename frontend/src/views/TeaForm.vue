@@ -133,6 +133,14 @@
           <el-form-item label="备注">
             <el-input v-model="brewingForm.notes" type="textarea" :rows="2" placeholder="冲泡注意事项" />
           </el-form-item>
+
+          <BrewingCurveEditor 
+            :brewing-param="brewingForm"
+            :editable="true"
+            :auto-sync="false"
+            @update:brewing-param="brewingForm = $event"
+            @curve-change="handleCurveChange"
+          />
         </div>
 
         <div v-show="currentStep === 3">
@@ -170,12 +178,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { createTea, updateTea, getTeaById, createBrewingParam } from '../api/tea'
 import { TEA_CATEGORIES, ORIGIN_REGIONS, STORAGE_METHODS, STOCK_UNITS, WATER_QUALITY_OPTIONS } from '../utils/constants'
+import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
+import { useBrewingCurveStore } from '../store/brewingCurve'
 
 const route = useRoute()
 const router = useRouter()
@@ -183,6 +193,8 @@ const isEdit = computed(() => !!route.params.id)
 const currentStep = ref(0)
 const submitting = ref(false)
 const formRef = ref(null)
+
+const { setCurveData, clearCurveData } = useBrewingCurveStore()
 
 const form = ref({
   name: '',
@@ -237,6 +249,16 @@ function fillTemplate(category) {
   }
 }
 
+function handleCurveChange(change) {
+  setCurveData(brewingForm.value)
+}
+
+watch(brewingForm, (newVal) => {
+  if (newVal && newVal.waterTemperature) {
+    setCurveData(newVal)
+  }
+}, { deep: true, immediate: true })
+
 async function handleNext() {
   if (currentStep.value === 0) {
     try {
@@ -286,6 +308,10 @@ onMounted(async () => {
       imageUrl: tea.imageUrl
     }
   }
+})
+
+onUnmounted(() => {
+  clearCurveData()
 })
 </script>
 
