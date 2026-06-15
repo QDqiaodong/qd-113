@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Data
 public class BrewingParamResponse {
@@ -26,4 +27,15 @@ public class BrewingParamResponse {
     private Boolean isDefault;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private Map<String, ParamDeviation> deviations;
+
+    @Data
+    public static class ParamDeviation {
+        private boolean deviates;
+        private Object templateValue;
+        private Object actualValue;
+        private String direction;
+        private Double deviationPercent;
+    }
 }

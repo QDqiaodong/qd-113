@@ -89,7 +89,12 @@
       <el-tab-pane label="冲泡参数" name="brewing">
         <div class="tab-header">
           <span class="section-title">冲泡参数设置</span>
-          <el-button type="primary" size="small" @click="openBrewingDialog()">添加参数</el-button>
+          <div class="tab-header-actions">
+            <el-tooltip content="红色表示偏高，蓝色表示偏低，灰色表示与模板一致">
+              <el-button size="small" plain :icon="InfoFilled">差异说明</el-button>
+            </el-tooltip>
+            <el-button type="primary" size="small" @click="openBrewingDialog()">添加参数</el-button>
+          </div>
         </div>
         <el-row :gutter="16">
           <el-col v-for="param in brewingParams" :key="param.id" :xs="24" :sm="12" :md="8">
@@ -103,34 +108,65 @@
                 </div>
               </div>
               <div class="param-grid">
-                <div class="param-item">
+                <div class="param-item" :class="getDeviationClass(param, 'waterTemperature')">
                   <span class="param-label">水温</span>
-                  <span class="param-value">{{ param.waterTemperature }}℃</span>
+                  <span class="param-value">
+                    {{ param.waterTemperature }}℃
+                    <span class="deviation-info" v-if="param.deviations?.waterTemperature?.deviates">
+                      (模板:{{ param.deviations.waterTemperature.templateValue }}℃
+                      <span :class="param.deviations.waterTemperature.direction === 'higher' ? 'deviation-higher' : 'deviation-lower'">
+                        {{ param.deviations.waterTemperature.direction === 'higher' ? '↑' : '↓' }}
+                        {{ Math.abs(param.deviations.waterTemperature.deviationPercent) }}%
+                      </span>)
+                    </span>
+                  </span>
                 </div>
-                <div class="param-item">
+                <div class="param-item" :class="getDeviationClass(param, 'teaAmount')">
                   <span class="param-label">投茶量</span>
-                  <span class="param-value">{{ param.teaAmount }}克</span>
+                  <span class="param-value">
+                    {{ param.teaAmount }}克
+                    <span class="deviation-info" v-if="param.deviations?.teaAmount?.deviates">
+                      (模板:{{ param.deviations.teaAmount.templateValue }}克
+                      <span :class="param.deviations.teaAmount.direction === 'higher' ? 'deviation-higher' : 'deviation-lower'">
+                        {{ param.deviations.teaAmount.direction === 'higher' ? '↑' : '↓' }}
+                        {{ Math.abs(param.deviations.teaAmount.deviationPercent) }}%
+                      </span>)
+                    </span>
+                  </span>
                 </div>
                 <div class="param-item">
                   <span class="param-label">茶水比</span>
                   <span class="param-value">{{ param.teaRatio || '-' }}</span>
                 </div>
-                <div class="param-item">
+                <div class="param-item" :class="getDeviationClass(param, 'waterAmount')">
                   <span class="param-label">注水量</span>
-                  <span class="param-value">{{ param.waterAmount || '-' }}ml</span>
+                  <span class="param-value">
+                    {{ param.waterAmount || '-' }}ml
+                    <span class="deviation-info" v-if="param.deviations?.waterAmount?.deviates">
+                      (模板:{{ param.deviations.waterAmount.templateValue }}ml
+                      <span :class="param.deviations.waterAmount.direction === 'higher' ? 'deviation-higher' : 'deviation-lower'">
+                        {{ param.deviations.waterAmount.direction === 'higher' ? '↑' : '↓' }}
+                        {{ Math.abs(param.deviations.waterAmount.deviationPercent) }}%
+                      </span>)
+                    </span>
+                  </span>
                 </div>
               </div>
               <el-divider style="margin:12px 0" />
               <div class="infusion-chart">
                 <div class="infusion-bar-group">
-                  <div class="infusion-bar" v-for="(val, idx) in getInfusionData(param)" :key="idx"
-                    :style="{ height: Math.max(10, val / 2) + 'px' }">
-                    <span class="bar-label">{{ val }}s</span>
+                  <div class="infusion-bar" v-for="(item, idx) in getInfusionDataWithDeviation(param)" :key="idx"
+                    :class="item.deviationClass"
+                    :style="{ height: Math.max(10, item.value / 2) + 'px' }">
+                    <span class="bar-label">{{ item.value }}s</span>
                   </div>
                 </div>
                 <div class="infusion-labels">
                   <span v-for="n in Math.min(4, param.totalInfusions || 4)" :key="n">第{{ n }}泡</span>
                   <span v-if="(param.totalInfusions || 4) > 4">+</span>
+                </div>
+                <div class="infusion-template-ref" v-if="getInfusionTemplateValues(param).length > 0">
+                  <el-text size="small" type="info">模板参考: {{ getInfusionTemplateValues(param).join('s / ') }}s</el-text>
                 </div>
               </div>
               <div v-if="param.notes" class="param-notes">
@@ -399,7 +435,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft } from '@element-plus/icons-vue'
+import { ArrowLeft, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getTeaById, deleteTea,
@@ -449,6 +485,41 @@ function getCategoryTagType(category) {
 
 function getInfusionData(param) {
   return [param.firstInfusionTime, param.secondInfusionTime, param.thirdInfusionTime, param.subsequentInfusionTime].filter(v => v != null)
+}
+
+function getDeviationClass(param, field) {
+  const dev = param.deviations?.[field]
+  if (!dev?.deviates) return ''
+  return dev.direction === 'higher' ? 'deviate-higher' : 'deviate-lower'
+}
+
+function getInfusionDataWithDeviation(param) {
+  const fields = ['firstInfusionTime', 'secondInfusionTime', 'thirdInfusionTime', 'subsequentInfusionTime']
+  const values = [param.firstInfusionTime, param.secondInfusionTime, param.thirdInfusionTime, param.subsequentInfusionTime]
+  const result = []
+  values.forEach((val, idx) => {
+    if (val != null) {
+      const dev = param.deviations?.[fields[idx]]
+      let deviationClass = ''
+      if (dev?.deviates) {
+        deviationClass = dev.direction === 'higher' ? 'infusion-bar-higher' : 'infusion-bar-lower'
+      }
+      result.push({ value: val, deviationClass })
+    }
+  })
+  return result
+}
+
+function getInfusionTemplateValues(param) {
+  const fields = ['firstInfusionTime', 'secondInfusionTime', 'thirdInfusionTime', 'subsequentInfusionTime']
+  const values = [param.firstInfusionTime, param.secondInfusionTime, param.thirdInfusionTime, param.subsequentInfusionTime]
+  const result = []
+  values.forEach((val, idx) => {
+    if (val != null && param.deviations?.[fields[idx]]?.templateValue != null) {
+      result.push(param.deviations[fields[idx]].templateValue)
+    }
+  })
+  return result
 }
 
 async function loadTea() {
@@ -710,6 +781,11 @@ onMounted(loadTea)
   margin-bottom: 16px;
 }
 
+.tab-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .param-card {
   margin-bottom: 16px;
 }
@@ -740,6 +816,17 @@ onMounted(loadTea)
   padding: 6px 10px;
   background: #f8f9fa;
   border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.param-item.deviate-higher {
+  background: linear-gradient(135deg, #fff5f5, #ffe0e0);
+  border: 1px solid #f56c6c;
+}
+
+.param-item.deviate-lower {
+  background: linear-gradient(135deg, #ecf5ff, #d9ecff);
+  border: 1px solid #409eff;
 }
 
 .param-label {
@@ -751,6 +838,24 @@ onMounted(loadTea)
   font-size: 14px;
   font-weight: 600;
   color: #2d6a4f;
+  text-align: right;
+}
+
+.deviation-info {
+  font-size: 11px;
+  font-weight: normal;
+  color: #909399;
+  margin-left: 4px;
+}
+
+.deviation-higher {
+  color: #f56c6c;
+  font-weight: 600;
+}
+
+.deviation-lower {
+  color: #409eff;
+  font-weight: 600;
 }
 
 .infusion-chart {
@@ -774,6 +879,17 @@ onMounted(loadTea)
   display: flex;
   align-items: flex-start;
   justify-content: center;
+  transition: all 0.2s;
+}
+
+.infusion-bar-higher {
+  background: linear-gradient(180deg, #f56c6c, #c0392b) !important;
+  box-shadow: 0 0 8px rgba(245, 108, 108, 0.4);
+}
+
+.infusion-bar-lower {
+  background: linear-gradient(180deg, #409eff, #1d6fe0) !important;
+  box-shadow: 0 0 8px rgba(64, 158, 255, 0.4);
 }
 
 .bar-label {
@@ -792,6 +908,11 @@ onMounted(loadTea)
 
 .infusion-labels span {
   width: 36px;
+  text-align: center;
+}
+
+.infusion-template-ref {
+  margin-top: 8px;
   text-align: center;
 }
 

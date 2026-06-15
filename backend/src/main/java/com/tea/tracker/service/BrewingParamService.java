@@ -12,7 +12,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -22,6 +25,7 @@ public class BrewingParamService {
 
     private final BrewingParamRepository brewingParamRepository;
     private final TeaRepository teaRepository;
+    private final TeaTemplateCacheService teaTemplateCacheService;
 
     @Transactional
     public BrewingParamResponse createBrewingParam(Long teaId, BrewingParamRequest request) {
@@ -134,6 +138,105 @@ public class BrewingParamService {
         resp.setIsDefault(param.getIsDefault());
         resp.setCreatedAt(param.getCreatedAt());
         resp.setUpdatedAt(param.getUpdatedAt());
+
+        String teaCategory = param.getTea().getTeaCategory();
+        if (teaCategory != null) {
+            Map<String, Object> template = teaTemplateCacheService.getBrewingTemplate(teaCategory);
+            resp.setDeviations(calculateDeviations(param, template));
+        }
+
         return resp;
+    }
+
+    private Map<String, BrewingParamResponse.ParamDeviation> calculateDeviations(BrewingParam param, Map<String, Object> template) {
+        Map<String, BrewingParamResponse.ParamDeviation> deviations = new HashMap<>();
+
+        deviations.put("waterTemperature", compareNumeric(
+                param.getWaterTemperature(),
+                template.get("waterTemperature"),
+                5
+        ));
+
+        deviations.put("teaAmount", compareNumeric(
+                param.getTeaAmount(),
+                template.get("teaAmount"),
+                0.5
+        ));
+
+        deviations.put("waterAmount", compareNumeric(
+                param.getWaterAmount(),
+                template.get("waterAmount"),
+                20
+        ));
+
+        deviations.put("firstInfusionTime", compareNumeric(
+                param.getFirstInfusionTime(),
+                template.get("firstInfusionTime"),
+                5
+        ));
+
+        deviations.put("secondInfusionTime", compareNumeric(
+                param.getSecondInfusionTime(),
+                template.get("secondInfusionTime"),
+                5
+        ));
+
+        deviations.put("thirdInfusionTime", compareNumeric(
+                param.getThirdInfusionTime(),
+                template.get("thirdInfusionTime"),
+                5
+        ));
+
+        deviations.put("subsequentInfusionTime", compareNumeric(
+                param.getSubsequentInfusionTime(),
+                template.get("subsequentInfusionTime"),
+                5
+        ));
+
+        return deviations;
+    }
+
+    private BrewingParamResponse.ParamDeviation compareNumeric(Object actualValue, Object templateValueObj, double tolerance) {
+        BrewingParamResponse.ParamDeviation deviation = new BrewingParamResponse.ParamDeviation();
+
+        if (actualValue == null || templateValueObj == null) {
+            deviation.setDeviates(false);
+            deviation.setActualValue(actualValue);
+            deviation.setTemplateValue(templateValueObj);
+            return deviation;
+        }
+
+        double actual = toDouble(actualValue);
+        double template = toDouble(templateValueObj);
+        double diff = actual - template;
+
+        deviation.setActualValue(actualValue);
+        deviation.setTemplateValue(templateValueObj);
+
+        if (Math.abs(diff) <= tolerance) {
+            deviation.setDeviates(false);
+        } else {
+            deviation.setDeviates(true);
+            deviation.setDirection(diff > 0 ? "higher" : "lower");
+            if (template != 0) {
+                deviation.setDeviationPercent(Math.round((diff / template) * 10000.0) / 100.0);
+            }
+        }
+
+        return deviation;
+    }
+
+    private double toDouble(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        if (value instanceof BigDecimal) {
+            return ((BigDecimal) value).doubleValue();
+        }
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException e) {
+            return 0.0;
+        }
     }
 }
