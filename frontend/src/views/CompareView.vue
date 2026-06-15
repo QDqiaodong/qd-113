@@ -14,6 +14,27 @@
 
     <template v-if="compareData.length >= 2">
       <el-card class="compare-card">
+        <h3 class="section-title">核心维度对比</h3>
+        <el-row :gutter="16" class="dim-grid">
+          <el-col v-for="dim in dimensionCards" :key="dim.key" :xs="24" :sm="12" :md="8" :lg="6">
+            <div class="dim-card" :style="{ background: dim.gradient }">
+              <div class="dim-card-header">
+                <span class="dim-icon">{{ dim.icon }}</span>
+                <span class="dim-label">{{ dim.label }}</span>
+              </div>
+              <div class="dim-tea-list">
+                <div v-for="tea in compareData" :key="tea.id" class="dim-tea-item">
+                  <span class="dim-tea-dot" :style="{ background: getColor(tea.id) }"></span>
+                  <span class="dim-tea-name">{{ tea.name }}</span>
+                  <span class="dim-tea-value" :style="{ color: getColor(tea.id) }">{{ dim.values[tea.id] }}</span>
+                </div>
+              </div>
+            </div>
+          </el-col>
+        </el-row>
+      </el-card>
+
+      <el-card class="compare-card">
         <h3 class="section-title">基础信息对比</h3>
         <el-table :data="compareTableData" border stripe>
           <el-table-column prop="field" label="对比项" width="120" fixed />
@@ -138,6 +159,91 @@ const hasTastingData = computed(() => {
   })
 })
 
+const dimensionCards = computed(() => {
+  return [
+    {
+      key: 'teaCategory',
+      label: '茶类',
+      icon: '🍵',
+      gradient: 'linear-gradient(135deg, #e0f2fe, #bae6fd)',
+      values: Object.fromEntries(
+        compareData.value.map(t => [t.id, t.teaCategory || '-'])
+      )
+    },
+    {
+      key: 'originRegion',
+      label: '产区',
+      icon: '📍',
+      gradient: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+      values: Object.fromEntries(
+        compareData.value.map(t => [t.id, t.originRegion || '-'])
+      )
+    },
+    {
+      key: 'harvestYear',
+      label: '年份',
+      icon: '📅',
+      gradient: 'linear-gradient(135deg, #fce7f3, #fbcfe8)',
+      values: Object.fromEntries(
+        compareData.value.map(t => [t.id, t.harvestYear || '未记录'])
+      )
+    },
+    {
+      key: 'currentStock',
+      label: '库存',
+      icon: '📦',
+      gradient: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
+      values: Object.fromEntries(
+        compareData.value.map(t => [t.id, t.currentStock != null ? `${t.currentStock}${t.stockUnit || ''}` : '-'])
+      )
+    },
+    {
+      key: 'waterTemperature',
+      label: '默认水温',
+      icon: '🌡️',
+      gradient: 'linear-gradient(135deg, #fee2e2, #fecaca)',
+      values: Object.fromEntries(
+        compareData.value.map(t => {
+          const params = brewingDataMap.value[t.id]
+          if (!params || params.length === 0) return [t.id, '-']
+          const def = params.find(p => p.isDefault) || params[0]
+          return [t.id, def.waterTemperature != null ? `${def.waterTemperature}℃` : '-']
+        })
+      )
+    },
+    {
+      key: 'totalInfusions',
+      label: '总泡数',
+      icon: '🫖',
+      gradient: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
+      values: Object.fromEntries(
+        compareData.value.map(t => {
+          const params = brewingDataMap.value[t.id]
+          if (!params || params.length === 0) return [t.id, '-']
+          const def = params.find(p => p.isDefault) || params[0]
+          return [t.id, def.totalInfusions != null ? `${def.totalInfusions}泡` : '-']
+        })
+      )
+    },
+    {
+      key: 'avgTasting',
+      label: '平均品鉴分',
+      icon: '⭐',
+      gradient: 'linear-gradient(135deg, #ede9fe, #ddd6fe)',
+      values: Object.fromEntries(
+        compareData.value.map(t => {
+          const notes = tastingDataMap.value[t.id]
+          if (!notes || notes.length === 0) return [t.id, '-']
+          const validScores = notes.map(n => n.overallScore).filter(s => s != null)
+          if (validScores.length === 0) return [t.id, '-']
+          const avg = validScores.reduce((a, b) => a + b, 0) / validScores.length
+          return [t.id, avg.toFixed(1)]
+        })
+      )
+    }
+  ]
+})
+
 const compareTableData = computed(() => {
   const fields = [
     { field: '茶类', key: 'teaCategory' },
@@ -227,6 +333,77 @@ onMounted(async () => {
 <style scoped>
 .select-card {
   margin-bottom: 20px;
+}
+
+.dim-grid {
+  margin-top: 4px;
+}
+
+.dim-card {
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.dim-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.dim-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.dim-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.dim-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.dim-tea-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dim-tea-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.dim-tea-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dim-tea-name {
+  color: #4b5563;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dim-tea-value {
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .select-row {
