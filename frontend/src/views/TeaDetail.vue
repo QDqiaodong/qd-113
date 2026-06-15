@@ -184,6 +184,18 @@
           <span class="section-title">仓储记录</span>
           <el-button type="primary" size="small" @click="openStorageDialog()">添加记录</el-button>
         </div>
+
+        <el-card class="environment-card" shadow="never" v-if="storageRecords.length > 0">
+          <StorageEnvironmentPanel 
+            :storage-records="storageRecords"
+            :tea-category="tea.teaCategory"
+            :stock-unit="tea.stockUnit || '克'"
+          />
+        </el-card>
+
+        <div class="tab-header" style="margin-top: 20px;">
+          <span class="section-subtitle">详细记录</span>
+        </div>
         <el-table :data="storageRecords" stripe style="width:100%">
           <el-table-column prop="recordDate" label="记录日期" width="180">
             <template #default="{ row }">{{ formatTime(row.recordDate) }}</template>
@@ -215,6 +227,14 @@
         <div class="tab-header">
           <span class="section-title">品鉴笔记</span>
           <el-button type="primary" size="small" @click="openTastingDialog()">添加记录</el-button>
+        </div>
+
+        <el-card class="radar-card" shadow="never" v-if="tastingNotes.length > 0">
+          <TastingRadarChart :tasting-notes="tastingNotes" />
+        </el-card>
+
+        <div class="tab-header" style="margin-top: 20px;">
+          <span class="section-subtitle">品鉴记录列表</span>
         </div>
         <el-row :gutter="16">
           <el-col v-for="note in tastingNotes" :key="note.id" :xs="24" :sm="12">
@@ -461,6 +481,8 @@ import {
 } from '../api/tea'
 import { SEAL_CONDITIONS, WATER_QUALITY_OPTIONS, BREWING_METHODS } from '../utils/constants'
 import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
+import StorageEnvironmentPanel from '../components/StorageEnvironmentPanel.vue'
+import TastingRadarChart from '../components/TastingRadarChart.vue'
 import { useBrewingCurveStore } from '../store/brewingCurve'
 
 const route = useRoute()
@@ -1050,6 +1072,23 @@ onUnmounted(() => {
   padding: 10px;
   background: #f8f9fa;
   border-radius: 6px;
+}
+
+.environment-card,
+.radar-card {
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #f8f9fa, #ffffff);
+}
+
+.environment-card :deep(.el-card__body),
+.radar-card :deep(.el-card__body) {
+  padding: 20px;
+}
+
+.section-subtitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2d6a4f;
 }
 
 @media (max-width: 768px) {

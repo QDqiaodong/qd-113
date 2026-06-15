@@ -24,3 +24,15 @@ export const BREWING_METHODS = [
 ]
 
 export const STOCK_UNITS = ['克', '两', '斤', '饼', '砖', '袋', '罐']
+
+export const TEA_STORAGE_CONDITIONS = {
+  '绿茶': { tempMin: 0, tempMax: 5, humidityMin: 50, humidityMax: 60 },
+  '红茶': { tempMin: 20, tempMax: 25, humidityMin: 50, humidityMax: 65 },
+  '乌龙茶': { tempMin: 15, tempMax: 25, humidityMin: 50, humidityMax: 65 },
+  '普洱茶': { tempMin: 20, tempMax: 30, humidityMin: 60, humidityMax: 80 },
+  '白茶': { tempMin: 10, tempMax: 25, humidityMin: 40, humidityMax: 60 },
+  '黑茶': { tempMin: 20, tempMax: 30, humidityMin: 60, humidityMax: 80 },
+  '黄茶': { tempMin: 0, tempMax: 10, humidityMin: 50, humidityMax: 60 },
+  '花茶': { tempMin: 15, tempMax: 25, humidityMin: 50, humidityMax: 65 },
+  '默认': { tempMin: 15, tempMax: 25, humidityMin: 50, humidityMax: 70 }
+}
