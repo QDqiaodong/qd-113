@@ -165,7 +165,7 @@
         <div v-for="(group, method) in groupedBrewingParams" :key="method" class="brewing-method-group">
           <div class="group-header">
             <span class="group-title">
-              <el-icon><Cup /></el-icon>
+              <span>☕</span>
               {{ method || '未指定冲泡方法' }}
             </span>
             <el-tag v-if="getDefaultByMethod(method)" type="success" size="small">
@@ -574,7 +574,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, InfoFilled, TrendCharts, Cup } from '@element-plus/icons-vue'
+import { ArrowLeft, InfoFilled, TrendCharts } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getTeaById, deleteTea,
