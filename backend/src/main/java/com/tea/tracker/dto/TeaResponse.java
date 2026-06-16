@@ -21,6 +21,8 @@ public class TeaResponse {
     private String imageUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime lastStorageDate;
+    private List<StockTrendPoint> stockTrend;
     private List<BrewingParamResponse> brewingParams;
     private List<StorageRecordResponse> storageRecords;
     private List<TastingNoteResponse> tastingNotes;

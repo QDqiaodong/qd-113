@@ -1,8 +1,11 @@
 package com.tea.tracker.service;
 
+import com.tea.tracker.dto.StockTrendPoint;
 import com.tea.tracker.dto.TeaRequest;
 import com.tea.tracker.dto.TeaResponse;
+import com.tea.tracker.entity.StorageRecord;
 import com.tea.tracker.entity.Tea;
+import com.tea.tracker.repository.StorageRecordRepository;
 import com.tea.tracker.repository.TeaRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,6 +23,7 @@ import java.util.stream.Collectors;
 public class TeaService {
 
     private final TeaRepository teaRepository;
+    private final StorageRecordRepository storageRecordRepository;
 
     @Transactional
     public TeaResponse createTea(TeaRequest request) {
@@ -123,6 +128,26 @@ public class TeaService {
         resp.setImageUrl(tea.getImageUrl());
         resp.setCreatedAt(tea.getCreatedAt());
         resp.setUpdatedAt(tea.getUpdatedAt());
+
+        List<StorageRecord> records = storageRecordRepository.findByTeaIdOrderByRecordDateAsc(tea.getId());
+        if (records != null && !records.isEmpty()) {
+            StorageRecord lastRecord = records.get(records.size() - 1);
+            resp.setLastStorageDate(lastRecord.getRecordDate());
+
+            List<StockTrendPoint> trend = new ArrayList<>();
+            int maxPoints = 10;
+            int start = Math.max(0, records.size() - maxPoints);
+            for (int i = start; i < records.size(); i++) {
+                StorageRecord r = records.get(i);
+                StockTrendPoint point = new StockTrendPoint();
+                point.setRecordDate(r.getRecordDate());
+                point.setStock(r.getCurrentStock());
+                point.setChange(r.getStockChange());
+                trend.add(point);
+            }
+            resp.setStockTrend(trend);
+        }
+
         return resp;
     }
 }

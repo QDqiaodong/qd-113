@@ -30,11 +30,24 @@
       <el-divider />
 
       <div class="summary-cards">
-        <div class="summary-card">
+        <div class="summary-card stock-summary-card" :class="getStockSummaryClass()">
           <div class="summary-icon">📦</div>
           <div class="summary-content">
-            <div class="summary-label">库存</div>
-            <div class="summary-value">{{ tea.currentStock || 0 }} {{ tea.stockUnit }}</div>
+            <div class="summary-label">
+              库存
+              <el-tooltip v-if="tea.lastStorageDate" :content="`最近仓储: ${formatTime(tea.lastStorageDate)}`">
+                <el-icon class="info-icon"><InfoFilled /></el-icon>
+              </el-tooltip>
+            </div>
+            <div class="summary-value">
+              {{ tea.currentStock || 0 }} {{ tea.stockUnit || '克' }}
+            </div>
+            <div class="summary-sub" v-if="tea.lastStorageDate">
+              最近仓储: {{ formatShortDate(tea.lastStorageDate) }}
+            </div>
+            <div class="summary-sub" v-else>
+              暂无仓储记录
+            </div>
           </div>
         </div>
         <div class="summary-card">
@@ -66,6 +79,56 @@
           </div>
         </div>
       </div>
+
+      <div class="stock-trend-card" v-if="tea.stockTrend && tea.stockTrend.length > 0">
+        <div class="stock-trend-card-header">
+          <h3 class="stock-trend-title">
+            <el-icon><TrendCharts /></el-icon>
+            库存变化趋势
+          </h3>
+          <div class="stock-trend-summary">
+            <span class="trend-summary-item">
+              初始: <strong>{{ getFirstStock() }}</strong> {{ tea.stockUnit || '克' }}
+            </span>
+            <span class="trend-summary-divider">→</span>
+            <span class="trend-summary-item">
+              当前: <strong>{{ tea.currentStock || 0 }}</strong> {{ tea.stockUnit || '克' }}
+            </span>
+            <span class="trend-summary-item" :class="getTotalChangeClass()">
+              ({{ getTotalChangeText() }})
+            </span>
+          </div>
+        </div>
+        <div class="stock-trend-chart-wrapper">
+          <StockTrendMini :trend="tea.stockTrend" :width="700" :height="120" />
+        </div>
+        <div class="stock-trend-stats">
+          <div class="stat-item">
+            <div class="stat-label">最大存量</div>
+            <div class="stat-value">{{ getMaxStock() }} {{ tea.stockUnit || '克' }}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">最小存量</div>
+            <div class="stat-value">{{ getMinStock() }} {{ tea.stockUnit || '克' }}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">入库次数</div>
+            <div class="stat-value stock-increase">{{ getInCount() }}次</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">出库次数</div>
+            <div class="stat-value stock-decrease">{{ getOutCount() }}次</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">累计入库</div>
+            <div class="stat-value stock-increase">+{{ getTotalIn() }} {{ tea.stockUnit || '克' }}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">累计出库</div>
+            <div class="stat-value stock-decrease">-{{ getTotalOut() }} {{ tea.stockUnit || '克' }}</div>
+          </div>
+        </div>
+      </div>
     </el-card>
 
     <el-tabs v-model="activeTab" class="detail-tabs">
@@ -79,7 +142,10 @@
           <el-descriptions-item label="产区">{{ tea.originRegion || '-' }}</el-descriptions-item>
           <el-descriptions-item label="采摘年份">{{ tea.harvestYear || '-' }}</el-descriptions-item>
           <el-descriptions-item label="储存方式">{{ tea.storageMethod || '未设置' }}</el-descriptions-item>
-          <el-descriptions-item label="现有存量">{{ tea.currentStock || 0 }} {{ tea.stockUnit }}</el-descriptions-item>
+          <el-descriptions-item label="现有存量">
+            <span :class="getStockTextClass()">{{ tea.currentStock || 0 }} {{ tea.stockUnit || '克' }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="最近仓储记录">{{ tea.lastStorageDate ? formatTime(tea.lastStorageDate) : '暂无' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatTime(tea.createdAt) }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ formatTime(tea.updatedAt) }}</el-descriptions-item>
           <el-descriptions-item label="描述" :span="2">{{ tea.description || '暂无描述' }}</el-descriptions-item>
@@ -388,6 +454,14 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-alert
+          v-if="storageForm.stockChange != null"
+          :title="getStockPreview()"
+          :type="getStockPreviewType()"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 16px;"
+        />
         <el-form-item label="备注">
           <el-input v-model="storageForm.notes" type="textarea" :rows="2" />
         </el-form-item>
@@ -471,7 +545,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, InfoFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, InfoFilled, TrendCharts } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getTeaById, deleteTea,
@@ -483,6 +557,7 @@ import { SEAL_CONDITIONS, WATER_QUALITY_OPTIONS, BREWING_METHODS } from '../util
 import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
 import StorageEnvironmentPanel from '../components/StorageEnvironmentPanel.vue'
 import TastingRadarChart from '../components/TastingRadarChart.vue'
+import StockTrendMini from '../components/StockTrendMini.vue'
 import { useBrewingCurveStore } from '../store/brewingCurve'
 
 const route = useRoute()
@@ -522,6 +597,12 @@ const tastingForm = ref({})
 function formatTime(t) {
   if (!t) return '-'
   return t.replace('T', ' ').substring(0, 19)
+}
+
+function formatShortDate(t) {
+  if (!t) return '-'
+  const date = new Date(t)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function getCategoryTagType(category) {
@@ -566,6 +647,112 @@ function getInfusionTemplateValues(param) {
     }
   })
   return result
+}
+
+function getStockSummaryClass() {
+  const stock = Number(tea.value.currentStock) || 0
+  if (stock <= 0) return 'stock-summary-empty'
+  if (stock < 50) return 'stock-summary-low'
+  return 'stock-summary-normal'
+}
+
+function getStockTextClass() {
+  const stock = Number(tea.value.currentStock) || 0
+  if (stock <= 0) return 'stock-empty-text'
+  if (stock < 50) return 'stock-low-text'
+  return ''
+}
+
+function getFirstStock() {
+  if (!tea.value.stockTrend || tea.value.stockTrend.length === 0) return 0
+  return Number(tea.value.stockTrend[0].stock) || 0
+}
+
+function getMaxStock() {
+  if (!tea.value.stockTrend || tea.value.stockTrend.length === 0) return 0
+  return Math.max(...tea.value.stockTrend.map(p => Number(p.stock) || 0))
+}
+
+function getMinStock() {
+  if (!tea.value.stockTrend || tea.value.stockTrend.length === 0) return 0
+  return Math.min(...tea.value.stockTrend.map(p => Number(p.stock) || 0))
+}
+
+function getInCount() {
+  if (!tea.value.stockTrend) return 0
+  return tea.value.stockTrend.filter(p => Number(p.change) > 0).length
+}
+
+function getOutCount() {
+  if (!tea.value.stockTrend) return 0
+  return tea.value.stockTrend.filter(p => Number(p.change) < 0).length
+}
+
+function getTotalIn() {
+  if (!tea.value.stockTrend) return 0
+  return tea.value.stockTrend
+    .filter(p => Number(p.change) > 0)
+    .reduce((sum, p) => sum + Number(p.change), 0)
+}
+
+function getTotalOut() {
+  if (!tea.value.stockTrend) return 0
+  return Math.abs(
+    tea.value.stockTrend
+      .filter(p => Number(p.change) < 0)
+      .reduce((sum, p) => sum + Number(p.change), 0)
+  )
+}
+
+function getTotalChangeClass() {
+  const first = getFirstStock()
+  const current = Number(tea.value.currentStock) || 0
+  if (current > first) return 'stock-increase'
+  if (current < first) return 'stock-decrease'
+  return ''
+}
+
+function getTotalChangeText() {
+  const first = getFirstStock()
+  const current = Number(tea.value.currentStock) || 0
+  const diff = current - first
+  if (diff > 0) return `+${diff} ${tea.value.stockUnit || '克'}`
+  if (diff < 0) return `${diff} ${tea.value.stockUnit || '克'}`
+  return `±0 ${tea.value.stockUnit || '克'}`
+}
+
+function getStockPreview() {
+  const current = Number(tea.value.currentStock) || 0
+  const change = Number(storageForm.value.stockChange) || 0
+  const result = current + change
+  if (editingStorage.value) {
+    const oldChange = Number(editingStorage.value.stockChange) || 0
+    const effective = current - oldChange
+    const newResult = effective + change
+    if (newResult < 0) {
+      return `⚠️ 警告：变动会导致负库存！回退原变动后: ${effective}${tea.value.stockUnit || '克'}，新变动: ${change > 0 ? '+' : ''}${change}，结果: ${newResult}${tea.value.stockUnit || '克'}`
+    }
+    return `回退原变动后库存: ${effective}${tea.value.stockUnit || '克'}，新变动: ${change > 0 ? '+' : ''}${change}，结果: ${newResult}${tea.value.stockUnit || '克'}`
+  }
+  if (result < 0) {
+    return `⚠️ 警告：变动会导致负库存！当前: ${current}${tea.value.stockUnit || '克'}，变动: ${change > 0 ? '+' : ''}${change}，结果: ${result}${tea.value.stockUnit || '克'}`
+  }
+  return `当前库存: ${current}${tea.value.stockUnit || '克'}，变动: ${change > 0 ? '+' : ''}${change}，变动后: ${result}${tea.value.stockUnit || '克'}`
+}
+
+function getStockPreviewType() {
+  const current = Number(tea.value.currentStock) || 0
+  const change = Number(storageForm.value.stockChange) || 0
+  let result
+  if (editingStorage.value) {
+    const oldChange = Number(editingStorage.value.stockChange) || 0
+    result = (current - oldChange) + change
+  } else {
+    result = current + change
+  }
+  if (result < 0) return 'error'
+  if (result < 50) return 'warning'
+  return 'success'
 }
 
 async function loadTea() {
@@ -688,19 +875,27 @@ async function handleSaveStorage() {
     }
     ElMessage.success('保存成功')
     storageDialogVisible.value = false
-    const res = await getStorageRecords(teaId)
-    storageRecords.value = res.data || []
+    const [teaRes, storageRes] = await Promise.all([
+      getTeaById(teaId),
+      getStorageRecords(teaId)
+    ])
+    tea.value = teaRes.data
+    storageRecords.value = storageRes.data || []
   } finally {
     saving.value = false
   }
 }
 
 async function handleDeleteStorage(id) {
-  await ElMessageBox.confirm('确定删除此仓储记录？', '确认删除', { type: 'warning' })
+  await ElMessageBox.confirm('确定删除此仓储记录？库存将根据记录变动回退', '确认删除', { type: 'warning' })
   await deleteStorageRecord(teaId, id)
   ElMessage.success('删除成功')
-  const res = await getStorageRecords(teaId)
-  storageRecords.value = res.data || []
+  const [teaRes, storageRes] = await Promise.all([
+    getTeaById(teaId),
+    getStorageRecords(teaId)
+  ])
+  tea.value = teaRes.data
+  storageRecords.value = storageRes.data || []
 }
 
 function openTastingDialog(note = null) {
@@ -827,11 +1022,31 @@ onUnmounted(() => {
   background: linear-gradient(135deg, #f8f9fa, #e9ecef);
   border-radius: 12px;
   transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
 }
 
 .summary-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.stock-summary-card {
+  min-width: 220px;
+}
+
+.stock-summary-card.stock-summary-normal {
+  background: linear-gradient(135deg, #f0fff4, #d8f3dc);
+  border: 1px solid #52b788;
+}
+
+.stock-summary-card.stock-summary-low {
+  background: linear-gradient(135deg, #fff8e6, #ffecd2);
+  border: 1px solid #f4a261;
+}
+
+.stock-summary-card.stock-summary-empty {
+  background: linear-gradient(135deg, #fff0f0, #ffd6d6);
+  border: 1px solid #e63946;
 }
 
 .summary-icon {
@@ -848,12 +1063,136 @@ onUnmounted(() => {
   font-size: 13px;
   color: #6c757d;
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.info-icon {
+  font-size: 12px;
+  color: #adb5bd;
+  cursor: help;
 }
 
 .summary-value {
   font-size: 18px;
   font-weight: 700;
   color: #1b4332;
+}
+
+.summary-sub {
+  font-size: 11px;
+  color: #868e96;
+  margin-top: 4px;
+}
+
+.stock-trend-card {
+  margin-top: 20px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa, #ffffff);
+  border-radius: 12px;
+  border: 1px solid #e9ecef;
+}
+
+.stock-trend-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.stock-trend-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1b4332;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stock-trend-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #495057;
+  flex-wrap: wrap;
+}
+
+.trend-summary-item {
+  display: inline-flex;
+  align-items: center;
+}
+
+.trend-summary-item.stock-increase {
+  color: #52b788;
+  font-weight: 500;
+}
+
+.trend-summary-item.stock-decrease {
+  color: #e63946;
+  font-weight: 500;
+}
+
+.trend-summary-divider {
+  color: #adb5bd;
+}
+
+.stock-trend-chart-wrapper {
+  padding: 12px 16px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.stock-trend-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.stat-item {
+  padding: 12px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #6c757d;
+  margin-bottom: 6px;
+}
+
+.stat-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1b4332;
+}
+
+.stat-value.stock-increase {
+  color: #52b788;
+}
+
+.stat-value.stock-decrease {
+  color: #e63946;
+}
+
+.stock-empty-text {
+  color: #e63946;
+  font-weight: 600;
+}
+
+.stock-low-text {
+  color: #f4a261;
+  font-weight: 600;
 }
 
 .basic-desc {
@@ -1100,6 +1439,9 @@ onUnmounted(() => {
     width: 100%;
     min-width: unset;
     height: 200px;
+  }
+  .stock-trend-summary {
+    justify-content: flex-start;
   }
 }
 </style>

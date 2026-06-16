@@ -51,7 +51,21 @@
             </div>
             <div class="tea-info">
               <span v-if="tea.harvestYear">{{ tea.harvestYear }}年</span>
-              <span v-if="tea.currentStock != null">{{ tea.currentStock }}{{ tea.stockUnit }}</span>
+              <span class="stock-info" :class="getStockClass(tea)">
+                <el-icon class="stock-icon"><Box /></el-icon>
+                {{ tea.currentStock != null ? tea.currentStock : 0 }}{{ tea.stockUnit || '克' }}
+              </span>
+            </div>
+
+            <div class="stock-trend-section">
+              <div class="stock-trend-header">
+                <span class="trend-title">库存趋势</span>
+                <span v-if="tea.lastStorageDate" class="last-storage">
+                  <el-icon><Clock /></el-icon>
+                  {{ formatShortDate(tea.lastStorageDate) }}
+                </span>
+              </div>
+              <StockTrendMini :trend="tea.stockTrend" :width="220" :height="50" />
             </div>
           </div>
         </el-card>
@@ -66,9 +80,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus, Search, Box, Clock } from '@element-plus/icons-vue'
 import { getTeaList } from '../api/tea'
 import { TEA_CATEGORIES, ORIGIN_REGIONS } from '../utils/constants'
+import StockTrendMini from '../components/StockTrendMini.vue'
 
 const teas = ref([])
 const loading = ref(false)
@@ -106,6 +121,19 @@ function getCategoryTagType(category) {
     '花茶': 'success'
   }
   return map[category] || ''
+}
+
+function getStockClass(tea) {
+  const stock = Number(tea.currentStock) || 0
+  if (stock <= 0) return 'stock-empty'
+  if (stock < 50) return 'stock-low'
+  return 'stock-normal'
+}
+
+function formatShortDate(t) {
+  if (!t) return '-'
+  const date = new Date(t)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 onMounted(loadTeas)
@@ -209,6 +237,57 @@ onMounted(loadTeas)
   display: flex;
   gap: 12px;
   font-size: 13px;
+  color: #868e96;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.stock-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.stock-icon {
+  font-size: 12px;
+}
+
+.stock-normal {
+  color: #2d6a4f;
+}
+
+.stock-low {
+  color: #f4a261;
+}
+
+.stock-empty {
+  color: #e63946;
+}
+
+.stock-trend-section {
+  padding-top: 10px;
+  border-top: 1px dashed #dee2e6;
+}
+
+.stock-trend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.trend-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #495057;
+}
+
+.last-storage {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
   color: #868e96;
 }
 </style>
