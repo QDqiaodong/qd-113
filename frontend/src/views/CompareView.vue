@@ -5,7 +5,7 @@
     <el-card class="select-card">
       <div class="select-row">
         <span class="select-label">选择茶叶进行对比（最多4款）：</span>
-        <el-select v-model="selectedTeaIds" multiple :max-collapse-tags="4" collapse-tags collapse-tags-tooltip placeholder="搜索并选择茶叶" filterable style="width:500px;max-width:100%">
+        <el-select v-model="selectedTeaIds" multiple :multiple-limit="4" :max-collapse-tags="4" collapse-tags collapse-tags-tooltip placeholder="搜索并选择茶叶（最多4款）" filterable style="width:500px;max-width:100%">
           <el-option v-for="t in allTeas" :key="t.id" :label="`${t.name} (${t.teaCategory})`" :value="t.id" />
         </el-select>
         <el-button type="primary" @click="loadCompareData" :loading="loading" :disabled="selectedTeaIds.length < 2">开始对比</el-button>
@@ -206,8 +206,8 @@ const dimensionCards = computed(() => {
         compareData.value.map(t => {
           const params = brewingDataMap.value[t.id]
           if (!params || params.length === 0) return [t.id, '-']
-          const def = params.find(p => p.isDefault) || params[0]
-          return [t.id, def.waterTemperature != null ? `${def.waterTemperature}℃` : '-']
+          const def = params.find(p => p.isDefault)
+          return [t.id, def && def.waterTemperature != null ? `${def.waterTemperature}℃` : '-']
         })
       )
     },
@@ -220,8 +220,8 @@ const dimensionCards = computed(() => {
         compareData.value.map(t => {
           const params = brewingDataMap.value[t.id]
           if (!params || params.length === 0) return [t.id, '-']
-          const def = params.find(p => p.isDefault) || params[0]
-          return [t.id, def.totalInfusions != null ? `${def.totalInfusions}泡` : '-']
+          const def = params.find(p => p.isDefault)
+          return [t.id, def && def.totalInfusions != null ? `${def.totalInfusions}泡` : '-']
         })
       )
     },
@@ -271,8 +271,8 @@ function getColor(id) {
 function getDefaultBrewingValue(tea, key) {
   const params = brewingDataMap.value[tea.id]
   if (!params || params.length === 0) return '-'
-  const def = params.find(p => p.isDefault) || params[0]
-  return def[key] ?? '-'
+  const def = params.find(p => p.isDefault)
+  return def ? (def[key] ?? '-') : '-'
 }
 
 function getBarWidth(tea, key, max) {
@@ -298,8 +298,8 @@ function getTastingBarWidth(tea, key) {
 function getInfusionTimeline(tea) {
   const params = brewingDataMap.value[tea.id]
   if (!params || params.length === 0) return []
-  const def = params.find(p => p.isDefault) || params[0]
-  return [def.firstInfusionTime, def.secondInfusionTime, def.thirdInfusionTime, def.subsequentInfusionTime].filter(v => v != null)
+  const def = params.find(p => p.isDefault)
+  return def ? [def.firstInfusionTime, def.secondInfusionTime, def.thirdInfusionTime, def.subsequentInfusionTime].filter(v => v != null) : []
 }
 
 async function loadCompareData() {

@@ -574,7 +574,7 @@ const editingCurveParam = ref(null)
 const curveEditingParam = ref(null)
 
 const defaultBrewing = computed(() => {
-  return brewingParams.value.find(p => p.isDefault) || brewingParams.value[0] || null
+  return brewingParams.value.find(p => p.isDefault) || null
 })
 
 const tea = ref({})
