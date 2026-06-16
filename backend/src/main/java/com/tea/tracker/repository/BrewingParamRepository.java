@@ -17,9 +17,17 @@ public interface BrewingParamRepository extends JpaRepository<BrewingParam, Long
 
     List<BrewingParam> findByTeaIdAndIsDefaultTrue(Long teaId);
 
+    List<BrewingParam> findByTeaIdAndBrewingMethodAndIsDefaultTrue(Long teaId, String brewingMethod);
+
     @Modifying
     @Query("UPDATE BrewingParam b SET b.isDefault = false WHERE b.tea.id = :teaId AND b.isDefault = true")
     int clearDefaultByTeaId(@Param("teaId") Long teaId);
 
+    @Modifying
+    @Query("UPDATE BrewingParam b SET b.isDefault = false WHERE b.tea.id = :teaId AND b.brewingMethod = :brewingMethod AND b.isDefault = true")
+    int clearDefaultByTeaIdAndBrewingMethod(@Param("teaId") Long teaId, @Param("brewingMethod") String brewingMethod);
+
     Optional<BrewingParam> findFirstByTeaIdAndIsDefaultTrueOrderByCreatedAtAsc(Long teaId);
+
+    Optional<BrewingParam> findFirstByTeaIdAndBrewingMethodAndIsDefaultTrueOrderByCreatedAtAsc(Long teaId, String brewingMethod);
 }

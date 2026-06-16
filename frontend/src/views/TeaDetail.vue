@@ -162,86 +162,99 @@
             <el-button type="primary" size="small" @click="openBrewingDialog()">添加参数</el-button>
           </div>
         </div>
-        <el-row :gutter="16">
-          <el-col v-for="param in brewingParams" :key="param.id" :xs="24" :sm="12" :md="8">
-            <el-card class="param-card" shadow="hover">
-              <div class="param-card-header">
-                <span class="param-name">{{ param.paramName || '冲泡方案' }}</span>
-                <div>
-                  <el-tag v-if="param.isDefault" type="success" size="small">默认</el-tag>
-                  <el-button size="small" text type="primary" @click="openCurveDialog(param)">查看曲线</el-button>
-                  <el-button size="small" text type="primary" @click="openBrewingDialog(param)">编辑</el-button>
-                  <el-button size="small" text type="danger" @click="handleDeleteBrewing(param.id)">删除</el-button>
-                </div>
-              </div>
-              <div class="param-grid">
-                <div class="param-item" :class="getDeviationClass(param, 'waterTemperature')">
-                  <span class="param-label">水温</span>
-                  <span class="param-value">
-                    {{ param.waterTemperature }}℃
-                    <span class="deviation-info" v-if="param.deviations?.waterTemperature?.deviates">
-                      (模板:{{ param.deviations.waterTemperature.templateValue }}℃
-                      <span :class="param.deviations.waterTemperature.direction === 'higher' ? 'deviation-higher' : 'deviation-lower'">
-                        {{ param.deviations.waterTemperature.direction === 'higher' ? '↑' : '↓' }}
-                        {{ Math.abs(param.deviations.waterTemperature.deviationPercent) }}%
-                      </span>)
-                    </span>
-                  </span>
-                </div>
-                <div class="param-item" :class="getDeviationClass(param, 'teaAmount')">
-                  <span class="param-label">投茶量</span>
-                  <span class="param-value">
-                    {{ param.teaAmount }}克
-                    <span class="deviation-info" v-if="param.deviations?.teaAmount?.deviates">
-                      (模板:{{ param.deviations.teaAmount.templateValue }}克
-                      <span :class="param.deviations.teaAmount.direction === 'higher' ? 'deviation-higher' : 'deviation-lower'">
-                        {{ param.deviations.teaAmount.direction === 'higher' ? '↑' : '↓' }}
-                        {{ Math.abs(param.deviations.teaAmount.deviationPercent) }}%
-                      </span>)
-                    </span>
-                  </span>
-                </div>
-                <div class="param-item">
-                  <span class="param-label">茶水比</span>
-                  <span class="param-value">{{ param.teaRatio || '-' }}</span>
-                </div>
-                <div class="param-item" :class="getDeviationClass(param, 'waterAmount')">
-                  <span class="param-label">注水量</span>
-                  <span class="param-value">
-                    {{ param.waterAmount || '-' }}ml
-                    <span class="deviation-info" v-if="param.deviations?.waterAmount?.deviates">
-                      (模板:{{ param.deviations.waterAmount.templateValue }}ml
-                      <span :class="param.deviations.waterAmount.direction === 'higher' ? 'deviation-higher' : 'deviation-lower'">
-                        {{ param.deviations.waterAmount.direction === 'higher' ? '↑' : '↓' }}
-                        {{ Math.abs(param.deviations.waterAmount.deviationPercent) }}%
-                      </span>)
-                    </span>
-                  </span>
-                </div>
-              </div>
-              <el-divider style="margin:12px 0" />
-              <div class="infusion-chart">
-                <div class="infusion-bar-group">
-                  <div class="infusion-bar" v-for="(item, idx) in getInfusionDataWithDeviation(param)" :key="idx"
-                    :class="item.deviationClass"
-                    :style="{ height: Math.max(10, item.value / 2) + 'px' }">
-                    <span class="bar-label">{{ item.value }}s</span>
+        <div v-for="(group, method) in groupedBrewingParams" :key="method" class="brewing-method-group">
+          <div class="group-header">
+            <span class="group-title">
+              <el-icon><Cup /></el-icon>
+              {{ method || '未指定冲泡方法' }}
+            </span>
+            <el-tag v-if="getDefaultByMethod(method)" type="success" size="small">
+              已有默认方案
+            </el-tag>
+          </div>
+          <el-row :gutter="16">
+            <el-col v-for="param in group" :key="param.id" :xs="24" :sm="12" :md="8">
+              <el-card class="param-card" shadow="hover" :class="{ 'param-card-default': param.isDefault }">
+                <div class="param-card-header">
+                  <div>
+                    <span class="param-name">{{ param.paramName || '冲泡方案' }}</span>
+                  </div>
+                  <div>
+                    <el-tag v-if="param.isDefault" type="success" size="small">默认</el-tag>
+                    <el-button size="small" text type="primary" @click="openCurveDialog(param)">查看曲线</el-button>
+                    <el-button size="small" text type="primary" @click="openBrewingDialog(param)">编辑</el-button>
+                    <el-button size="small" text type="danger" @click="handleDeleteBrewing(param.id)">删除</el-button>
                   </div>
                 </div>
-                <div class="infusion-labels">
-                  <span v-for="n in Math.min(4, param.totalInfusions || 4)" :key="n">第{{ n }}泡</span>
-                  <span v-if="(param.totalInfusions || 4) > 4">+</span>
+                <div class="param-grid">
+                  <div class="param-item" :class="getDeviationClass(param, 'waterTemperature')">
+                    <span class="param-label">水温</span>
+                    <span class="param-value">
+                      {{ param.waterTemperature }}℃
+                      <span class="deviation-info" v-if="param.deviations?.waterTemperature?.deviates">
+                        (模板:{{ param.deviations.waterTemperature.templateValue }}℃
+                        <span :class="param.deviations.waterTemperature.direction === 'higher' ? 'deviation-higher' : 'deviation-lower'">
+                          {{ param.deviations.waterTemperature.direction === 'higher' ? '↑' : '↓' }}
+                          {{ Math.abs(param.deviations.waterTemperature.deviationPercent) }}%
+                        </span>)
+                      </span>
+                    </span>
+                  </div>
+                  <div class="param-item" :class="getDeviationClass(param, 'teaAmount')">
+                    <span class="param-label">投茶量</span>
+                    <span class="param-value">
+                      {{ param.teaAmount }}克
+                      <span class="deviation-info" v-if="param.deviations?.teaAmount?.deviates">
+                        (模板:{{ param.deviations.teaAmount.templateValue }}克
+                        <span :class="param.deviations.teaAmount.direction === 'higher' ? 'deviation-higher' : 'deviation-lower'">
+                          {{ param.deviations.teaAmount.direction === 'higher' ? '↑' : '↓' }}
+                          {{ Math.abs(param.deviations.teaAmount.deviationPercent) }}%
+                        </span>)
+                      </span>
+                    </span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-label">茶水比</span>
+                    <span class="param-value">{{ param.teaRatio || '-' }}</span>
+                  </div>
+                  <div class="param-item" :class="getDeviationClass(param, 'waterAmount')">
+                    <span class="param-label">注水量</span>
+                    <span class="param-value">
+                      {{ param.waterAmount || '-' }}ml
+                      <span class="deviation-info" v-if="param.deviations?.waterAmount?.deviates">
+                        (模板:{{ param.deviations.waterAmount.templateValue }}ml
+                        <span :class="param.deviations.waterAmount.direction === 'higher' ? 'deviation-higher' : 'deviation-lower'">
+                          {{ param.deviations.waterAmount.direction === 'higher' ? '↑' : '↓' }}
+                          {{ Math.abs(param.deviations.waterAmount.deviationPercent) }}%
+                        </span>)
+                      </span>
+                    </span>
+                  </div>
                 </div>
-                <div class="infusion-template-ref" v-if="getInfusionTemplateValues(param).length > 0">
-                  <el-text size="small" type="info">模板参考: {{ getInfusionTemplateValues(param).join('s / ') }}s</el-text>
+                <el-divider style="margin:12px 0" />
+                <div class="infusion-chart">
+                  <div class="infusion-bar-group">
+                    <div class="infusion-bar" v-for="(item, idx) in getInfusionDataWithDeviation(param)" :key="idx"
+                      :class="item.deviationClass"
+                      :style="{ height: Math.max(10, item.value / 2) + 'px' }">
+                      <span class="bar-label">{{ item.value }}s</span>
+                    </div>
+                  </div>
+                  <div class="infusion-labels">
+                    <span v-for="n in Math.min(4, param.totalInfusions || 4)" :key="n">第{{ n }}泡</span>
+                    <span v-if="(param.totalInfusions || 4) > 4">+</span>
+                  </div>
+                  <div class="infusion-template-ref" v-if="getInfusionTemplateValues(param).length > 0">
+                    <el-text size="small" type="info">模板参考: {{ getInfusionTemplateValues(param).join('s / ') }}s</el-text>
+                  </div>
                 </div>
-              </div>
-              <div v-if="param.notes" class="param-notes">
-                <el-text type="info" size="small">{{ param.notes }}</el-text>
-              </div>
-            </el-card>
-          </el-col>
-        </el-row>
+                <div v-if="param.notes" class="param-notes">
+                  <el-text type="info" size="small">{{ param.notes }}</el-text>
+                </div>
+              </el-card>
+            </el-col>
+          </el-row>
+        </div>
         <el-empty v-if="brewingParams.length === 0" description="暂无冲泡参数，快来添加吧" />
       </el-tab-pane>
 
@@ -363,6 +376,11 @@
         </div>
         <el-form-item label="参数名称">
           <el-input v-model="brewingForm.paramName" placeholder="如：日常冲泡" />
+        </el-form-item>
+        <el-form-item label="冲泡方法">
+          <el-select v-model="brewingForm.brewingMethod" placeholder="请选择冲泡方法" style="width:100%">
+            <el-option v-for="m in BREWING_METHODS" :key="m" :label="m" :value="m" />
+          </el-select>
         </el-form-item>
         <el-row :gutter="16">
           <el-col :span="12">
@@ -556,7 +574,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, InfoFilled, TrendCharts } from '@element-plus/icons-vue'
+import { ArrowLeft, InfoFilled, TrendCharts, Cup } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getTeaById, deleteTea,
@@ -589,6 +607,24 @@ const curveEditingParam = ref(null)
 const defaultBrewing = computed(() => {
   return brewingParams.value.find(p => p.isDefault) || null
 })
+
+const groupedBrewingParams = computed(() => {
+  const groups = {}
+  brewingParams.value.forEach(param => {
+    const method = param.brewingMethod || ''
+    if (!groups[method]) {
+      groups[method] = []
+    }
+    groups[method].push(param)
+  })
+  return groups
+})
+
+function getDefaultByMethod(method) {
+  const group = groupedBrewingParams.value[method]
+  if (!group) return null
+  return group.find(p => p.isDefault) || null
+}
 
 const tea = ref({})
 const brewingParams = ref([])
@@ -797,7 +833,7 @@ async function handleDeleteTea() {
 function openBrewingDialog(param = null) {
   editingBrewing.value = param
   brewingForm.value = param ? { ...param } : {
-    paramName: '', waterTemperature: 90, teaAmount: 5, teaRatio: '1:30',
+    paramName: '', brewingMethod: '盖碗冲泡', waterTemperature: 90, teaAmount: 5, teaRatio: '1:30',
     waterAmount: 150, firstInfusionTime: 15, secondInfusionTime: 20,
     thirdInfusionTime: 25, subsequentInfusionTime: 30, totalInfusions: 5,
     waterQuality: '纯净水', notes: '', isDefault: false
@@ -1258,8 +1294,35 @@ onUnmounted(() => {
   gap: 8px;
 }
 
+.brewing-method-group {
+  margin-bottom: 24px;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2d6a4f;
+}
+
 .param-card {
   margin-bottom: 16px;
+}
+
+.param-card-default {
+  border: 2px solid #52b788;
+  box-shadow: 0 2px 12px rgba(82, 183, 136, 0.2);
 }
 
 .param-card-header {
@@ -1273,6 +1336,13 @@ onUnmounted(() => {
   font-weight: 600;
   font-size: 15px;
   color: #1b4332;
+}
+
+.brewing-method-tag {
+  margin-left: 8px;
+  background: #e9ecef;
+  color: #495057;
+  border: none;
 }
 
 .param-grid {

@@ -13,6 +13,7 @@ public class BrewingParamResponse {
     private Long teaId;
     private String teaName;
     private String paramName;
+    private String brewingMethod;
     private Integer waterTemperature;
     private BigDecimal teaAmount;
     private String teaRatio;

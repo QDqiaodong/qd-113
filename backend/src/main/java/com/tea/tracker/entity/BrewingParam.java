@@ -24,6 +24,9 @@ public class BrewingParam {
     @Column(name = "param_name", length = 100)
     private String paramName;
 
+    @Column(name = "brewing_method", length = 100)
+    private String brewingMethod;
+
     @Column(name = "water_temperature", nullable = false)
     private Integer waterTemperature;
 

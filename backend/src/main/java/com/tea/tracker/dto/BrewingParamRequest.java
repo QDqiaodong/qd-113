@@ -10,6 +10,8 @@ public class BrewingParamRequest {
 
     private String paramName;
 
+    private String brewingMethod;
+
     @NotNull(message = "水温不能为空")
     private Integer waterTemperature;
 

@@ -111,7 +111,11 @@ public class BrewingParamService {
             validateBrewingParams(tea.getTeaCategory(), request);
 
             if (Boolean.TRUE.equals(request.getIsDefault())) {
-                brewingParamRepository.clearDefaultByTeaId(teaId);
+                if (request.getBrewingMethod() != null && !request.getBrewingMethod().isEmpty()) {
+                    brewingParamRepository.clearDefaultByTeaIdAndBrewingMethod(teaId, request.getBrewingMethod());
+                } else {
+                    brewingParamRepository.clearDefaultByTeaId(teaId);
+                }
             }
 
             BrewingParam param = new BrewingParam();
@@ -139,8 +143,20 @@ public class BrewingParamService {
 
             validateBrewingParams(param.getTea().getTeaCategory(), request);
 
-            if (Boolean.TRUE.equals(request.getIsDefault()) && !Boolean.TRUE.equals(param.getIsDefault())) {
-                brewingParamRepository.clearDefaultByTeaId(param.getTea().getId());
+            String oldBrewingMethod = param.getBrewingMethod();
+            String newBrewingMethod = request.getBrewingMethod();
+            boolean methodChanged = (oldBrewingMethod == null && newBrewingMethod != null)
+                    || (oldBrewingMethod != null && !oldBrewingMethod.equals(newBrewingMethod));
+
+            boolean becomingDefault = Boolean.TRUE.equals(request.getIsDefault())
+                    && !Boolean.TRUE.equals(param.getIsDefault());
+
+            if (becomingDefault || (methodChanged && Boolean.TRUE.equals(request.getIsDefault()))) {
+                if (newBrewingMethod != null && !newBrewingMethod.isEmpty()) {
+                    brewingParamRepository.clearDefaultByTeaIdAndBrewingMethod(teaId, newBrewingMethod);
+                } else {
+                    brewingParamRepository.clearDefaultByTeaId(teaId);
+                }
             }
 
             mapRequestToEntity(request, param);
@@ -166,19 +182,29 @@ public class BrewingParamService {
     @Transactional(readOnly = true)
     public List<BrewingParamResponse> getBrewingParamsByTeaId(Long teaId) {
         List<BrewingParam> params = brewingParamRepository.findByTeaIdOrderByCreatedAtDesc(teaId);
-        long defaultCount = params.stream().filter(p -> Boolean.TRUE.equals(p.getIsDefault())).count();
-        if (defaultCount > 1) {
-            log.warn("Tea {} has {} default brewing params, will fix on next write operation", teaId, defaultCount);
-            BrewingParam firstDefault = params.stream()
-                    .filter(p -> Boolean.TRUE.equals(p.getIsDefault()))
-                    .findFirst()
-                    .orElse(null);
-            if (firstDefault != null) {
-                for (BrewingParam p : params) {
-                    p.setIsDefault(p.getId().equals(firstDefault.getId()));
+
+        Map<String, List<BrewingParam>> paramsByMethod = params.stream()
+                .collect(Collectors.groupingBy(p -> p.getBrewingMethod() != null ? p.getBrewingMethod() : ""));
+
+        for (Map.Entry<String, List<BrewingParam>> entry : paramsByMethod.entrySet()) {
+            List<BrewingParam> methodParams = entry.getValue();
+            long defaultCount = methodParams.stream().filter(p -> Boolean.TRUE.equals(p.getIsDefault())).count();
+            if (defaultCount > 1) {
+                String methodLabel = entry.getKey().isEmpty() ? "(未指定)" : entry.getKey();
+                log.warn("Tea {} has {} default brewing params for method '{}', will fix on next write operation",
+                        teaId, defaultCount, methodLabel);
+                BrewingParam firstDefault = methodParams.stream()
+                        .filter(p -> Boolean.TRUE.equals(p.getIsDefault()))
+                        .findFirst()
+                        .orElse(null);
+                if (firstDefault != null) {
+                    for (BrewingParam p : methodParams) {
+                        p.setIsDefault(p.getId().equals(firstDefault.getId()));
+                    }
                 }
             }
         }
+
         return params.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -198,6 +224,7 @@ public class BrewingParamService {
 
     private void mapRequestToEntity(BrewingParamRequest request, BrewingParam param) {
         param.setParamName(request.getParamName());
+        param.setBrewingMethod(request.getBrewingMethod());
         param.setWaterTemperature(request.getWaterTemperature());
         param.setTeaAmount(request.getTeaAmount());
         param.setTeaRatio(request.getTeaRatio());
@@ -218,6 +245,7 @@ public class BrewingParamService {
         resp.setTeaId(param.getTea().getId());
         resp.setTeaName(param.getTea().getName());
         resp.setParamName(param.getParamName());
+        resp.setBrewingMethod(param.getBrewingMethod());
         resp.setWaterTemperature(param.getWaterTemperature());
         resp.setTeaAmount(param.getTeaAmount());
         resp.setTeaRatio(param.getTeaRatio());
