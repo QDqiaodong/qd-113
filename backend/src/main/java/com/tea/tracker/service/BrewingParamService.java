@@ -16,6 +16,8 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -27,47 +29,57 @@ public class BrewingParamService {
     private final TeaRepository teaRepository;
     private final TeaTemplateCacheService teaTemplateCacheService;
 
+    private final ConcurrentHashMap<Long, ReentrantLock> teaLocks = new ConcurrentHashMap<>();
+
+    private ReentrantLock getTeaLock(Long teaId) {
+        return teaLocks.computeIfAbsent(teaId, k -> new ReentrantLock());
+    }
+
     @Transactional
     public BrewingParamResponse createBrewingParam(Long teaId, BrewingParamRequest request) {
-        Tea tea = teaRepository.findById(teaId)
-                .orElseThrow(() -> new EntityNotFoundException("茶叶档案不存在: " + teaId));
+        ReentrantLock lock = getTeaLock(teaId);
+        lock.lock();
+        try {
+            Tea tea = teaRepository.findById(teaId)
+                    .orElseThrow(() -> new EntityNotFoundException("茶叶档案不存在: " + teaId));
 
-        if (Boolean.TRUE.equals(request.getIsDefault())) {
-            brewingParamRepository.findByTeaIdAndIsDefaultTrue(teaId)
-                    .forEach(p -> {
-                        p.setIsDefault(false);
-                        brewingParamRepository.save(p);
-                    });
+            if (Boolean.TRUE.equals(request.getIsDefault())) {
+                brewingParamRepository.clearDefaultByTeaId(teaId);
+            }
+
+            BrewingParam param = new BrewingParam();
+            mapRequestToEntity(request, param);
+            param.setTea(tea);
+            BrewingParam saved = brewingParamRepository.save(param);
+            log.info("Created brewing param for tea {} (id={})", tea.getName(), saved.getId());
+            return toResponse(saved);
+        } finally {
+            lock.unlock();
         }
-
-        BrewingParam param = new BrewingParam();
-        mapRequestToEntity(request, param);
-        param.setTea(tea);
-        BrewingParam saved = brewingParamRepository.save(param);
-        log.info("Created brewing param for tea {} (id={})", tea.getName(), saved.getId());
-        return toResponse(saved);
     }
 
     @Transactional
     public BrewingParamResponse updateBrewingParam(Long teaId, Long id, BrewingParamRequest request) {
-        BrewingParam param = brewingParamRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("冲泡参数不存在: " + id));
+        ReentrantLock lock = getTeaLock(teaId);
+        lock.lock();
+        try {
+            BrewingParam param = brewingParamRepository.findById(id)
+                    .orElseThrow(() -> new EntityNotFoundException("冲泡参数不存在: " + id));
 
-        if (!param.getTea().getId().equals(teaId)) {
-            throw new IllegalArgumentException("冲泡参数不属于当前茶叶");
+            if (!param.getTea().getId().equals(teaId)) {
+                throw new IllegalArgumentException("冲泡参数不属于当前茶叶");
+            }
+
+            if (Boolean.TRUE.equals(request.getIsDefault()) && !Boolean.TRUE.equals(param.getIsDefault())) {
+                brewingParamRepository.clearDefaultByTeaId(param.getTea().getId());
+            }
+
+            mapRequestToEntity(request, param);
+            BrewingParam updated = brewingParamRepository.save(param);
+            return toResponse(updated);
+        } finally {
+            lock.unlock();
         }
-
-        if (Boolean.TRUE.equals(request.getIsDefault()) && !Boolean.TRUE.equals(param.getIsDefault())) {
-            brewingParamRepository.findByTeaIdAndIsDefaultTrue(param.getTea().getId())
-                    .forEach(p -> {
-                        p.setIsDefault(false);
-                        brewingParamRepository.save(p);
-                    });
-        }
-
-        mapRequestToEntity(request, param);
-        BrewingParam updated = brewingParamRepository.save(param);
-        return toResponse(updated);
     }
 
     @Transactional
@@ -84,8 +96,21 @@ public class BrewingParamService {
 
     @Transactional(readOnly = true)
     public List<BrewingParamResponse> getBrewingParamsByTeaId(Long teaId) {
-        return brewingParamRepository.findByTeaIdOrderByCreatedAtDesc(teaId)
-                .stream()
+        List<BrewingParam> params = brewingParamRepository.findByTeaIdOrderByCreatedAtDesc(teaId);
+        long defaultCount = params.stream().filter(p -> Boolean.TRUE.equals(p.getIsDefault())).count();
+        if (defaultCount > 1) {
+            log.warn("Tea {} has {} default brewing params, will fix on next write operation", teaId, defaultCount);
+            BrewingParam firstDefault = params.stream()
+                    .filter(p -> Boolean.TRUE.equals(p.getIsDefault()))
+                    .findFirst()
+                    .orElse(null);
+            if (firstDefault != null) {
+                for (BrewingParam p : params) {
+                    p.setIsDefault(p.getId().equals(firstDefault.getId()));
+                }
+            }
+        }
+        return params.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }

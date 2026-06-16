@@ -48,6 +48,10 @@ export function getBrewingTemplate(teaId, category) {
   return request.get(`/teas/${teaId}/brewing-params/template`, { params: { category } })
 }
 
+export function getBrewingTemplateByCategory(category) {
+  return request.get(`/teas/brewing-template/${category}`)
+}
+
 export function getStorageRecords(teaId) {
   return request.get(`/teas/${teaId}/storage-records`)
 }

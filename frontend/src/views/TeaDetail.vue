@@ -350,6 +350,10 @@
 
     <el-dialog v-model="brewingDialogVisible" :title="editingBrewing ? '编辑冲泡参数' : '添加冲泡参数'" width="700px" destroy-on-close>
       <el-form :model="brewingForm" label-width="100px">
+        <div class="quick-template" v-if="!editingBrewing">
+          <span class="template-label">快速填充模板：</span>
+          <el-button v-for="c in TEA_CATEGORIES" :key="c" size="small" @click="fillBrewingTemplate(c)" plain>{{ c }}</el-button>
+        </div>
         <el-form-item label="参数名称">
           <el-input v-model="brewingForm.paramName" placeholder="如：日常冲泡" />
         </el-form-item>
@@ -551,9 +555,10 @@ import {
   getTeaById, deleteTea,
   getBrewingParams, createBrewingParam, updateBrewingParam, deleteBrewingParam,
   getStorageRecords, createStorageRecord, updateStorageRecord, deleteStorageRecord,
-  getTastingNotes, createTastingNote, updateTastingNote, deleteTastingNote
+  getTastingNotes, createTastingNote, updateTastingNote, deleteTastingNote,
+  getBrewingTemplateByCategory
 } from '../api/tea'
-import { SEAL_CONDITIONS, WATER_QUALITY_OPTIONS, BREWING_METHODS } from '../utils/constants'
+import { SEAL_CONDITIONS, WATER_QUALITY_OPTIONS, BREWING_METHODS, TEA_CATEGORIES } from '../utils/constants'
 import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
 import StorageEnvironmentPanel from '../components/StorageEnvironmentPanel.vue'
 import TastingRadarChart from '../components/TastingRadarChart.vue'
@@ -593,6 +598,7 @@ const editingTasting = ref(null)
 const brewingForm = ref({})
 const storageForm = ref({})
 const tastingForm = ref({})
+const loadingTemplate = ref(false)
 
 function formatTime(t) {
   if (!t) return '-'
@@ -789,6 +795,35 @@ function openBrewingDialog(param = null) {
     waterQuality: '纯净水', notes: '', isDefault: false
   }
   brewingDialogVisible.value = true
+}
+
+async function fillBrewingTemplate(category) {
+  if (loadingTemplate.value) return
+  loadingTemplate.value = true
+  try {
+    const res = await getBrewingTemplateByCategory(category)
+    const tpl = res.data
+    if (tpl) {
+      Object.assign(brewingForm.value, {
+        waterTemperature: tpl.waterTemperature,
+        teaAmount: tpl.teaAmount,
+        teaRatio: tpl.teaRatio,
+        waterAmount: tpl.waterAmount,
+        firstInfusionTime: tpl.firstInfusionTime,
+        secondInfusionTime: tpl.secondInfusionTime,
+        thirdInfusionTime: tpl.thirdInfusionTime,
+        subsequentInfusionTime: tpl.subsequentInfusionTime,
+        totalInfusions: tpl.totalInfusions,
+        waterQuality: tpl.waterQuality,
+        notes: tpl.tips || ''
+      })
+      ElMessage.success(`已填充${category}推荐参数`)
+    }
+  } catch (e) {
+    ElMessage.error('获取模板失败')
+  } finally {
+    loadingTemplate.value = false
+  }
 }
 
 async function handleSaveBrewing() {
@@ -1428,6 +1463,20 @@ onUnmounted(() => {
   font-size: 16px;
   font-weight: 600;
   color: #2d6a4f;
+}
+
+.quick-template {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.template-label {
+  font-size: 14px;
+  color: #606266;
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {

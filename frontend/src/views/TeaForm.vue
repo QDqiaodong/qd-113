@@ -182,7 +182,7 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { createTea, updateTea, getTeaById, createBrewingParam } from '../api/tea'
+import { createTea, updateTea, getTeaById, createBrewingParam, getBrewingTemplateByCategory } from '../api/tea'
 import { TEA_CATEGORIES, ORIGIN_REGIONS, STORAGE_METHODS, STOCK_UNITS, WATER_QUALITY_OPTIONS } from '../utils/constants'
 import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
 import { useBrewingCurveStore } from '../store/brewingCurve'
@@ -230,22 +230,34 @@ const rules = {
   originRegion: [{ required: true, message: '请选择产区', trigger: 'change' }]
 }
 
-const TEMPLATE_MAP = {
-  '绿茶': { waterTemperature: 80, teaAmount: 3, teaRatio: '1:50', firstInfusionTime: 15, secondInfusionTime: 20, thirdInfusionTime: 25, subsequentInfusionTime: 30, totalInfusions: 3 },
-  '红茶': { waterTemperature: 90, teaAmount: 5, teaRatio: '1:30', firstInfusionTime: 10, secondInfusionTime: 15, thirdInfusionTime: 20, subsequentInfusionTime: 25, totalInfusions: 5 },
-  '乌龙茶': { waterTemperature: 95, teaAmount: 8, teaRatio: '1:20', firstInfusionTime: 10, secondInfusionTime: 12, thirdInfusionTime: 15, subsequentInfusionTime: 20, totalInfusions: 8 },
-  '普洱茶': { waterTemperature: 100, teaAmount: 8, teaRatio: '1:20', firstInfusionTime: 8, secondInfusionTime: 8, thirdInfusionTime: 10, subsequentInfusionTime: 15, totalInfusions: 12 },
-  '白茶': { waterTemperature: 85, teaAmount: 5, teaRatio: '1:30', firstInfusionTime: 20, secondInfusionTime: 25, thirdInfusionTime: 30, subsequentInfusionTime: 35, totalInfusions: 6 },
-  '黑茶': { waterTemperature: 100, teaAmount: 8, teaRatio: '1:20', firstInfusionTime: 10, secondInfusionTime: 10, thirdInfusionTime: 12, subsequentInfusionTime: 15, totalInfusions: 10 },
-  '黄茶': { waterTemperature: 80, teaAmount: 3, teaRatio: '1:50', firstInfusionTime: 15, secondInfusionTime: 20, thirdInfusionTime: 25, subsequentInfusionTime: 30, totalInfusions: 4 },
-  '花茶': { waterTemperature: 85, teaAmount: 5, teaRatio: '1:30', firstInfusionTime: 15, secondInfusionTime: 20, thirdInfusionTime: 25, subsequentInfusionTime: 30, totalInfusions: 4 }
-}
+const loadingTemplate = ref(false)
 
-function fillTemplate(category) {
-  const tpl = TEMPLATE_MAP[category]
-  if (tpl) {
-    Object.assign(brewingForm.value, tpl)
-    ElMessage.success(`已填充${category}推荐参数`)
+async function fillTemplate(category) {
+  if (loadingTemplate.value) return
+  loadingTemplate.value = true
+  try {
+    const res = await getBrewingTemplateByCategory(category)
+    const tpl = res.data
+    if (tpl) {
+      Object.assign(brewingForm.value, {
+        waterTemperature: tpl.waterTemperature,
+        teaAmount: tpl.teaAmount,
+        teaRatio: tpl.teaRatio,
+        waterAmount: tpl.waterAmount,
+        firstInfusionTime: tpl.firstInfusionTime,
+        secondInfusionTime: tpl.secondInfusionTime,
+        thirdInfusionTime: tpl.thirdInfusionTime,
+        subsequentInfusionTime: tpl.subsequentInfusionTime,
+        totalInfusions: tpl.totalInfusions,
+        waterQuality: tpl.waterQuality,
+        notes: tpl.tips || ''
+      })
+      ElMessage.success(`已填充${category}推荐参数`)
+    }
+  } catch (e) {
+    ElMessage.error('获取模板失败')
+  } finally {
+    loadingTemplate.value = false
   }
 }
 

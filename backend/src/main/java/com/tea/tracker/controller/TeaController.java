@@ -4,11 +4,13 @@ import com.tea.tracker.dto.ApiResponse;
 import com.tea.tracker.dto.TeaRequest;
 import com.tea.tracker.dto.TeaResponse;
 import com.tea.tracker.service.TeaService;
+import com.tea.tracker.service.TeaTemplateCacheService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/teas")
@@ -16,6 +18,7 @@ import java.util.List;
 public class TeaController {
 
     private final TeaService teaService;
+    private final TeaTemplateCacheService teaTemplateCacheService;
 
     @PostMapping
     public ApiResponse<TeaResponse> createTea(@Valid @RequestBody TeaRequest request) {
@@ -63,5 +66,10 @@ public class TeaController {
     @GetMapping("/regions")
     public ApiResponse<List<String>> getAllRegions() {
         return ApiResponse.success(teaService.getAllRegions());
+    }
+
+    @GetMapping("/brewing-template/{category}")
+    public ApiResponse<Map<String, Object>> getBrewingTemplate(@PathVariable String category) {
+        return ApiResponse.success(teaTemplateCacheService.getBrewingTemplate(category));
     }
 }
