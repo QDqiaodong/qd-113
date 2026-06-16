@@ -25,6 +25,11 @@ const routes = [
     path: '/compare',
     name: 'Compare',
     component: () => import('../views/CompareView.vue')
+  },
+  {
+    path: '/aging-timeline',
+    name: 'AgingTimeline',
+    component: () => import('../views/AgingTimelineView.vue')
   }
 ]
 

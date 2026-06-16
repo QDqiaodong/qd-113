@@ -11,5 +11,7 @@ public interface TastingNoteRepository extends JpaRepository<TastingNote, Long> 
 
     List<TastingNote> findByTeaIdOrderByTastingDateDesc(Long teaId);
 
+    List<TastingNote> findByTeaIdOrderByTastingDateAsc(Long teaId);
+
     List<TastingNote> findByTeaIdOrderByCreatedAtDesc(Long teaId);
 }

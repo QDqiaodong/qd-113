@@ -21,6 +21,10 @@
             <el-icon><DataAnalysis /></el-icon>
             数据对比
           </el-menu-item>
+          <el-menu-item index="/aging-timeline">
+            <el-icon><Timer /></el-icon>
+            陈化时间轴
+          </el-menu-item>
         </el-menu>
       </el-header>
       <el-main class="app-main">
@@ -33,11 +37,12 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { HomeFilled, DataAnalysis } from '@element-plus/icons-vue'
+import { HomeFilled, DataAnalysis, Timer } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const activeMenu = computed(() => {
   if (route.path.startsWith('/compare')) return '/compare'
+  if (route.path.startsWith('/aging-timeline')) return '/aging-timeline'
   return '/'
 })
 </script>

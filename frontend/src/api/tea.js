@@ -83,3 +83,11 @@ export function updateTastingNote(teaId, id, data) {
 export function deleteTastingNote(teaId, id) {
   return request.delete(`/teas/${teaId}/tasting-notes/${id}`)
 }
+
+export function getAgingTimeline(teaId) {
+  return request.get(`/teas/${teaId}/aging-timeline`)
+}
+
+export function getAgingTimelines(category) {
+  return request.get('/teas/aging-timelines', { params: { category } })
+}

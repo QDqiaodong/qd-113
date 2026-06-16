@@ -346,6 +346,13 @@
         </el-row>
         <el-empty v-if="tastingNotes.length === 0" description="暂无品饮记录，记录你的品茶体验吧" />
       </el-tab-pane>
+
+      <el-tab-pane label="陈化时间轴" name="aging">
+        <div class="tab-header">
+          <span class="section-title">年份陈化时间轴</span>
+        </div>
+        <AgingTimeline :tea-id="teaId" />
+      </el-tab-pane>
     </el-tabs>
 
     <el-dialog v-model="brewingDialogVisible" :title="editingBrewing ? '编辑冲泡参数' : '添加冲泡参数'" width="700px" destroy-on-close>
@@ -563,6 +570,7 @@ import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
 import StorageEnvironmentPanel from '../components/StorageEnvironmentPanel.vue'
 import TastingRadarChart from '../components/TastingRadarChart.vue'
 import StockTrendMini from '../components/StockTrendMini.vue'
+import AgingTimeline from '../components/AgingTimeline.vue'
 import { useBrewingCurveStore } from '../store/brewingCurve'
 
 const route = useRoute()
