@@ -1,6 +1,7 @@
 package com.tea.tracker.exception;
 
 import com.tea.tracker.dto.ApiResponse;
+import com.tea.tracker.dto.FieldValidationError;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -38,6 +40,13 @@ public class GlobalExceptionHandler {
         log.warn("Illegal argument: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(400, e.getMessage()));
+    }
+
+    @ExceptionHandler(BrewingParamValidationException.class)
+    public ResponseEntity<ApiResponse<List<FieldValidationError>>> handleBrewingParamValidation(BrewingParamValidationException e) {
+        log.warn("Brewing param validation error: {}", e.getMessage());
+        ApiResponse<List<FieldValidationError>> response = new ApiResponse<>(400, e.getMessage(), e.getErrors());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler(Exception.class)

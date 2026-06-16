@@ -30,6 +30,8 @@ public class BrewingParamResponse {
 
     private Map<String, ParamDeviation> deviations;
 
+    private TemplateHitStatus templateHitStatus;
+
     @Data
     public static class ParamDeviation {
         private boolean deviates;
@@ -37,5 +39,13 @@ public class BrewingParamResponse {
         private Object actualValue;
         private String direction;
         private Double deviationPercent;
+    }
+
+    @Data
+    public static class TemplateHitStatus {
+        private boolean hit;
+        private Long cachedVersion;
+        private long currentVersion;
+        private boolean versionMatch;
     }
 }

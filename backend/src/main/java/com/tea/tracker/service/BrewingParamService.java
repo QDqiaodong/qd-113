@@ -2,8 +2,10 @@ package com.tea.tracker.service;
 
 import com.tea.tracker.dto.BrewingParamRequest;
 import com.tea.tracker.dto.BrewingParamResponse;
+import com.tea.tracker.dto.FieldValidationError;
 import com.tea.tracker.entity.BrewingParam;
 import com.tea.tracker.entity.Tea;
+import com.tea.tracker.exception.BrewingParamValidationException;
 import com.tea.tracker.repository.BrewingParamRepository;
 import com.tea.tracker.repository.TeaRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -13,9 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -35,6 +35,71 @@ public class BrewingParamService {
         return teaLocks.computeIfAbsent(teaId, k -> new ReentrantLock());
     }
 
+    private void validateBrewingParams(String teaCategory, BrewingParamRequest request) {
+        Map<String, Object> ranges = teaTemplateCacheService.getParamRanges(teaCategory);
+        List<FieldValidationError> errors = new ArrayList<>();
+
+        if (request.getWaterTemperature() != null) {
+            int min = toInt(ranges.get("waterTemperatureMin"));
+            int max = toInt(ranges.get("waterTemperatureMax"));
+            if (request.getWaterTemperature() < min || request.getWaterTemperature() > max) {
+                errors.add(new FieldValidationError(
+                        "waterTemperature", request.getWaterTemperature(), min, max,
+                        String.format("水温应在 %d~%d°C 之间，当前值: %d°C", min, max, request.getWaterTemperature())
+                ));
+            }
+        }
+
+        if (request.getTeaAmount() != null) {
+            double min = toDouble(ranges.get("teaAmountMin"));
+            double max = toDouble(ranges.get("teaAmountMax"));
+            double val = request.getTeaAmount().doubleValue();
+            if (val < min || val > max) {
+                errors.add(new FieldValidationError(
+                        "teaAmount", request.getTeaAmount(), min, max,
+                        String.format("投茶量应在 %.1f~%.1fg 之间，当前值: %.1fg", min, max, val)
+                ));
+            }
+        }
+
+        if (request.getWaterAmount() != null) {
+            double min = toDouble(ranges.get("waterAmountMin"));
+            double max = toDouble(ranges.get("waterAmountMax"));
+            double val = request.getWaterAmount().doubleValue();
+            if (val < min || val > max) {
+                errors.add(new FieldValidationError(
+                        "waterAmount", request.getWaterAmount(), min, max,
+                        String.format("注水量应在 %.0f~%.0fml 之间，当前值: %.0fml", min, max, val)
+                ));
+            }
+        }
+
+        validateInfusionTime(request.getFirstInfusionTime(), "firstInfusionTime", "首泡时长", ranges, errors);
+        validateInfusionTime(request.getSecondInfusionTime(), "secondInfusionTime", "二泡时长", ranges, errors);
+        validateInfusionTime(request.getThirdInfusionTime(), "thirdInfusionTime", "三泡时长", ranges, errors);
+        validateInfusionTime(request.getSubsequentInfusionTime(), "subsequentInfusionTime", "后续泡次时长", ranges, errors);
+
+        if (!errors.isEmpty()) {
+            throw new BrewingParamValidationException(
+                    String.format("冲泡参数校验失败（茶类: %s），共 %d 项异常", teaCategory, errors.size()),
+                    errors
+            );
+        }
+    }
+
+    private void validateInfusionTime(Integer value, String fieldKey, String displayName,
+                                      Map<String, Object> ranges, List<FieldValidationError> errors) {
+        if (value == null) return;
+        int min = toInt(ranges.get(fieldKey + "Min"));
+        int max = toInt(ranges.get(fieldKey + "Max"));
+        if (value < min || value > max) {
+            errors.add(new FieldValidationError(
+                    fieldKey, value, min, max,
+                    String.format("%s应在 %d~%d秒 之间，当前值: %d秒", displayName, min, max, value)
+            ));
+        }
+    }
+
     @Transactional
     public BrewingParamResponse createBrewingParam(Long teaId, BrewingParamRequest request) {
         ReentrantLock lock = getTeaLock(teaId);
@@ -42,6 +107,8 @@ public class BrewingParamService {
         try {
             Tea tea = teaRepository.findById(teaId)
                     .orElseThrow(() -> new EntityNotFoundException("茶叶档案不存在: " + teaId));
+
+            validateBrewingParams(tea.getTeaCategory(), request);
 
             if (Boolean.TRUE.equals(request.getIsDefault())) {
                 brewingParamRepository.clearDefaultByTeaId(teaId);
@@ -69,6 +136,8 @@ public class BrewingParamService {
             if (!param.getTea().getId().equals(teaId)) {
                 throw new IllegalArgumentException("冲泡参数不属于当前茶叶");
             }
+
+            validateBrewingParams(param.getTea().getTeaCategory(), request);
 
             if (Boolean.TRUE.equals(request.getIsDefault()) && !Boolean.TRUE.equals(param.getIsDefault())) {
                 brewingParamRepository.clearDefaultByTeaId(param.getTea().getId());
@@ -168,6 +237,16 @@ public class BrewingParamService {
         if (teaCategory != null) {
             Map<String, Object> template = teaTemplateCacheService.getBrewingTemplate(teaCategory);
             resp.setDeviations(calculateDeviations(param, template));
+
+            TeaTemplateCacheService.CacheHitStatus hitStatus = teaTemplateCacheService.getCacheHitStatus(teaCategory);
+            if (hitStatus != null) {
+                BrewingParamResponse.TemplateHitStatus status = new BrewingParamResponse.TemplateHitStatus();
+                status.setHit(hitStatus.isCacheHit());
+                status.setCachedVersion(hitStatus.getCachedVersion());
+                status.setCurrentVersion(hitStatus.getCurrentVersion());
+                status.setVersionMatch(hitStatus.isVersionMatch());
+                resp.setTemplateHitStatus(status);
+            }
         }
 
         return resp;
@@ -262,6 +341,17 @@ public class BrewingParamService {
             return Double.parseDouble(value.toString());
         } catch (NumberFormatException e) {
             return 0.0;
+        }
+    }
+
+    private int toInt(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 }

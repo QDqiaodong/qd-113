@@ -15,8 +15,8 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        log.info("Initializing tea brewing templates in Redis...");
-        templateCacheService.initAllTemplates();
-        log.info("Data initialization complete");
+        log.info("Initializing/refreshing tea brewing templates in Redis (with version check)...");
+        templateCacheService.refreshAllTemplates();
+        log.info("Data initialization complete - all templates refreshed with latest version and parameter ranges");
     }
 }
