@@ -1,6 +1,7 @@
 package com.tea.tracker.repository;
 
 import com.tea.tracker.entity.BrewingSession;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
