@@ -1,10 +1,15 @@
 package com.tea.tracker.service;
 
+import com.tea.tracker.dto.BrewingParamResponse;
 import com.tea.tracker.dto.StockTrendPoint;
+import com.tea.tracker.dto.TeaComparisonResponse;
 import com.tea.tracker.dto.TeaRequest;
 import com.tea.tracker.dto.TeaResponse;
+import com.tea.tracker.dto.TastingScoreSummary;
+import com.tea.tracker.entity.BrewingParam;
 import com.tea.tracker.entity.StorageRecord;
 import com.tea.tracker.entity.Tea;
+import com.tea.tracker.repository.BrewingParamRepository;
 import com.tea.tracker.repository.StorageRecordRepository;
 import com.tea.tracker.repository.TeaRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -15,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -24,6 +30,8 @@ public class TeaService {
 
     private final TeaRepository teaRepository;
     private final StorageRecordRepository storageRecordRepository;
+    private final BrewingParamRepository brewingParamRepository;
+    private final TastingScoreService tastingScoreService;
 
     @Transactional
     public TeaResponse createTea(TeaRequest request) {
@@ -100,6 +108,82 @@ public class TeaService {
     @Transactional(readOnly = true)
     public List<String> getAllRegions() {
         return teaRepository.findAllRegions();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeaComparisonResponse> getTeaComparison(List<Long> teaIds) {
+        return teaIds.stream()
+                .map(id -> teaRepository.findById(id).orElse(null))
+                .filter(Objects::nonNull)
+                .map(this::toComparisonResponse)
+                .collect(Collectors.toList());
+    }
+
+    private TeaComparisonResponse toComparisonResponse(Tea tea) {
+        TeaComparisonResponse resp = new TeaComparisonResponse();
+        resp.setId(tea.getId());
+        resp.setName(tea.getName());
+        resp.setTeaCategory(tea.getTeaCategory());
+        resp.setOriginRegion(tea.getOriginRegion());
+        resp.setHarvestYear(tea.getHarvestYear());
+        resp.setStorageMethod(tea.getStorageMethod());
+        resp.setCurrentStock(tea.getCurrentStock());
+        resp.setStockUnit(tea.getStockUnit());
+        resp.setDescription(tea.getDescription());
+        resp.setImageUrl(tea.getImageUrl());
+
+        brewingParamRepository.findFirstByTeaIdAndIsDefaultTrueOrderByCreatedAtAsc(tea.getId())
+                .ifPresent(param -> resp.setDefaultBrewingParam(toBrewingParamResponse(param)));
+
+        storageRecordRepository.findTopByTeaIdOrderByRecordDateDesc(tea.getId())
+                .ifPresent(record -> resp.setLatestStorageRecord(toStorageRecordResponse(record)));
+
+        TastingScoreSummary scoreSummary = tastingScoreService.getScoreSummaryByTeaId(tea.getId());
+        resp.setAvgTastingScores(scoreSummary);
+
+        return resp;
+    }
+
+    private BrewingParamResponse toBrewingParamResponse(BrewingParam param) {
+        BrewingParamResponse resp = new BrewingParamResponse();
+        resp.setId(param.getId());
+        resp.setTeaId(param.getTea().getId());
+        resp.setTeaName(param.getTea().getName());
+        resp.setParamName(param.getParamName());
+        resp.setBrewingMethod(param.getBrewingMethod());
+        resp.setWaterTemperature(param.getWaterTemperature());
+        resp.setTeaAmount(param.getTeaAmount());
+        resp.setTeaRatio(param.getTeaRatio());
+        resp.setWaterAmount(param.getWaterAmount());
+        resp.setFirstInfusionTime(param.getFirstInfusionTime());
+        resp.setSecondInfusionTime(param.getSecondInfusionTime());
+        resp.setThirdInfusionTime(param.getThirdInfusionTime());
+        resp.setSubsequentInfusionTime(param.getSubsequentInfusionTime());
+        resp.setTotalInfusions(param.getTotalInfusions());
+        resp.setWaterQuality(param.getWaterQuality());
+        resp.setNotes(param.getNotes());
+        resp.setIsDefault(param.getIsDefault());
+        resp.setCreatedAt(param.getCreatedAt());
+        resp.setUpdatedAt(param.getUpdatedAt());
+        return resp;
+    }
+
+    private com.tea.tracker.dto.StorageRecordResponse toStorageRecordResponse(StorageRecord record) {
+        com.tea.tracker.dto.StorageRecordResponse resp = new com.tea.tracker.dto.StorageRecordResponse();
+        resp.setId(record.getId());
+        resp.setTeaId(record.getTea().getId());
+        resp.setTeaName(record.getTea().getName());
+        resp.setStorageLocation(record.getStorageLocation());
+        resp.setTemperature(record.getTemperature());
+        resp.setHumidity(record.getHumidity());
+        resp.setSealCondition(record.getSealCondition());
+        resp.setStockChange(record.getStockChange());
+        resp.setCurrentStock(record.getCurrentStock());
+        resp.setRecordDate(record.getRecordDate());
+        resp.setNotes(record.getNotes());
+        resp.setCreatedAt(record.getCreatedAt());
+        resp.setUpdatedAt(record.getUpdatedAt());
+        return resp;
     }
 
     private void mapRequestToEntity(TeaRequest request, Tea tea) {

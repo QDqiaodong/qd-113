@@ -1,6 +1,7 @@
 package com.tea.tracker.controller;
 
 import com.tea.tracker.dto.ApiResponse;
+import com.tea.tracker.dto.TeaComparisonResponse;
 import com.tea.tracker.dto.TeaRequest;
 import com.tea.tracker.dto.TeaResponse;
 import com.tea.tracker.service.TeaService;
@@ -71,5 +72,10 @@ public class TeaController {
     @GetMapping("/brewing-template/{category}")
     public ApiResponse<Map<String, Object>> getBrewingTemplate(@PathVariable String category) {
         return ApiResponse.success(teaTemplateCacheService.getBrewingTemplate(category));
+    }
+
+    @GetMapping("/comparison")
+    public ApiResponse<List<TeaComparisonResponse>> getTeaComparison(@RequestParam List<Long> ids) {
+        return ApiResponse.success(teaService.getTeaComparison(ids));
     }
 }
