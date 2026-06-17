@@ -25,9 +25,5 @@ public class StorageRecordRequest {
     @DecimalMax(value = "99999.99", message = "库存变化不能高于99999.99")
     private BigDecimal stockChange;
 
-    @DecimalMin(value = "0", message = "当前库存不能为负数")
-    @DecimalMax(value = "999999.99", message = "当前库存不能超过999999.99")
-    private BigDecimal currentStock;
-
     private String notes;
 }

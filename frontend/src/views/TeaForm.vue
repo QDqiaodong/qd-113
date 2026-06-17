@@ -24,8 +24,8 @@
             </el-select>
           </el-form-item>
           <el-form-item label="产区" prop="originRegion">
-            <el-select v-model="form.originRegion" placeholder="请选择产区" filterable allow-create style="width:100%">
-              <el-option v-for="r in ORIGIN_REGIONS" :key="r" :label="r" :value="r" />
+            <el-select v-model="form.originRegion" placeholder="请选择或输入产区" filterable allow-create style="width:100%">
+              <el-option v-for="r in originRegions" :key="r" :label="r" :value="r" />
             </el-select>
           </el-form-item>
           <el-form-item label="采摘年份" prop="harvestYear">
@@ -182,8 +182,8 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { createTea, updateTea, getTeaById, createBrewingParam, getBrewingTemplateByCategory } from '../api/tea'
-import { TEA_CATEGORIES, ORIGIN_REGIONS, STORAGE_METHODS, STOCK_UNITS, WATER_QUALITY_OPTIONS } from '../utils/constants'
+import { createTea, updateTea, getTeaById, createBrewingParam, getBrewingTemplateByCategory, getRegions } from '../api/tea'
+import { TEA_CATEGORIES, STORAGE_METHODS, STOCK_UNITS, WATER_QUALITY_OPTIONS } from '../utils/constants'
 import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
 import { useBrewingCurveStore } from '../store/brewingCurve'
 
@@ -231,6 +231,16 @@ const rules = {
 }
 
 const loadingTemplate = ref(false)
+const originRegions = ref([])
+
+async function loadRegions() {
+  try {
+    const res = await getRegions()
+    originRegions.value = res.data || []
+  } catch (e) {
+    console.error('加载产区列表失败', e)
+  }
+}
 
 async function fillTemplate(category) {
   if (loadingTemplate.value) return
@@ -305,6 +315,7 @@ async function handleSubmit() {
 }
 
 onMounted(async () => {
+  await loadRegions()
   if (isEdit.value) {
     const res = await getTeaById(route.params.id)
     const tea = res.data

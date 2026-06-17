@@ -68,30 +68,48 @@ public class StorageRecordService {
         }
 
         Tea tea = record.getTea();
-        BigDecimal oldChange = record.getStockChange() != null ? record.getStockChange() : BigDecimal.ZERO;
         BigDecimal newChange = request.getStockChange() != null ? request.getStockChange() : BigDecimal.ZERO;
-        BigDecimal currentTeaStock = tea.getCurrentStock() != null ? tea.getCurrentStock() : BigDecimal.ZERO;
 
-        BigDecimal effectiveStock = currentTeaStock.subtract(oldChange);
-        BigDecimal newStock = effectiveStock.add(newChange);
+        List<StorageRecord> allRecords = storageRecordRepository.findByTeaIdOrderByRecordDateAsc(teaId);
+        int recordIndex = -1;
+        for (int i = 0; i < allRecords.size(); i++) {
+            if (allRecords.get(i).getId().equals(id)) {
+                recordIndex = i;
+                break;
+            }
+        }
 
+        BigDecimal baseStock = BigDecimal.ZERO;
+        if (recordIndex > 0) {
+            baseStock = allRecords.get(recordIndex - 1).getCurrentStock() != null 
+                ? allRecords.get(recordIndex - 1).getCurrentStock() 
+                : BigDecimal.ZERO;
+        }
+
+        BigDecimal newStock = baseStock.add(newChange);
         if (newStock.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException(
-                    String.format("库存变动会导致负库存！原变动回退后库存: %s%s, 新变动: %s%s, 变动后: %s%s",
-                            effectiveStock, tea.getStockUnit() != null ? tea.getStockUnit() : "",
+                    String.format("库存变动会导致负库存！记录前库存: %s%s, 新变动: %s%s, 变动后: %s%s",
+                            baseStock, tea.getStockUnit() != null ? tea.getStockUnit() : "",
                             newChange, tea.getStockUnit() != null ? tea.getStockUnit() : "",
                             newStock, tea.getStockUnit() != null ? tea.getStockUnit() : "")
             );
         }
 
-        tea.setCurrentStock(newStock);
-        teaRepository.save(tea);
-
         mapRequestToEntity(request, record);
         record.setCurrentStock(newStock);
         StorageRecord updated = storageRecordRepository.save(record);
+
+        updateSubsequentRecords(allRecords, recordIndex, newStock);
+
+        BigDecimal finalStock = allRecords.get(allRecords.size() - 1).getCurrentStock() != null 
+            ? allRecords.get(allRecords.size() - 1).getCurrentStock() 
+            : BigDecimal.ZERO;
+        tea.setCurrentStock(finalStock);
+        teaRepository.save(tea);
+
         log.info("Updated storage record id={} for tea {}, stock adjusted to {}",
-                id, tea.getName(), newStock);
+                id, tea.getName(), finalStock);
         return toResponse(updated);
     }
 
@@ -105,25 +123,61 @@ public class StorageRecordService {
         }
 
         Tea tea = record.getTea();
-        BigDecimal oldChange = record.getStockChange() != null ? record.getStockChange() : BigDecimal.ZERO;
-        BigDecimal currentTeaStock = tea.getCurrentStock() != null ? tea.getCurrentStock() : BigDecimal.ZERO;
-        BigDecimal newStock = currentTeaStock.subtract(oldChange);
+        List<StorageRecord> allRecords = storageRecordRepository.findByTeaIdOrderByRecordDateAsc(teaId);
+        int recordIndex = -1;
+        for (int i = 0; i < allRecords.size(); i++) {
+            if (allRecords.get(i).getId().equals(id)) {
+                recordIndex = i;
+                break;
+            }
+        }
 
-        if (newStock.compareTo(BigDecimal.ZERO) < 0) {
+        BigDecimal baseStock = BigDecimal.ZERO;
+        if (recordIndex > 0) {
+            baseStock = allRecords.get(recordIndex - 1).getCurrentStock() != null 
+                ? allRecords.get(recordIndex - 1).getCurrentStock() 
+                : BigDecimal.ZERO;
+        }
+
+        if (recordIndex < allRecords.size() - 1) {
+            updateSubsequentRecords(allRecords, recordIndex - 1, baseStock);
+        }
+
+        BigDecimal finalStock = baseStock;
+        if (allRecords.size() > 1) {
+            int lastIndex = recordIndex == allRecords.size() - 1 ? recordIndex - 1 : allRecords.size() - 1;
+            if (lastIndex >= 0) {
+                StorageRecord lastRecord = allRecords.get(lastIndex);
+                finalStock = lastRecord.getCurrentStock() != null 
+                    ? lastRecord.getCurrentStock() 
+                    : BigDecimal.ZERO;
+            }
+        }
+
+        if (finalStock.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException(
-                    String.format("删除该记录会导致负库存！当前库存: %s%s, 回退变动: %s%s, 回退后: %s%s",
-                            currentTeaStock, tea.getStockUnit() != null ? tea.getStockUnit() : "",
-                            oldChange, tea.getStockUnit() != null ? tea.getStockUnit() : "",
-                            newStock, tea.getStockUnit() != null ? tea.getStockUnit() : "")
+                    String.format("删除该记录会导致负库存！删除后库存: %s%s",
+                            finalStock, tea.getStockUnit() != null ? tea.getStockUnit() : "")
             );
         }
 
-        tea.setCurrentStock(newStock);
+        tea.setCurrentStock(finalStock);
         teaRepository.save(tea);
 
         storageRecordRepository.delete(record);
         log.info("Deleted storage record id={} for tea {}, stock adjusted to {}",
-                id, tea.getName(), newStock);
+                id, tea.getName(), finalStock);
+    }
+
+    private void updateSubsequentRecords(List<StorageRecord> allRecords, int fromIndex, BigDecimal startStock) {
+        BigDecimal currentStock = startStock;
+        for (int i = fromIndex + 1; i < allRecords.size(); i++) {
+            StorageRecord r = allRecords.get(i);
+            BigDecimal change = r.getStockChange() != null ? r.getStockChange() : BigDecimal.ZERO;
+            currentStock = currentStock.add(change);
+            r.setCurrentStock(currentStock);
+            storageRecordRepository.save(r);
+        }
     }
 
     @Transactional(readOnly = true)

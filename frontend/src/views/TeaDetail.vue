@@ -572,7 +572,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="当前存量">
-              <el-input-number v-model="storageForm.currentStock" :min="0" :precision="2" style="width:100%" />
+              <el-input :value="getCalculatedCurrentStock()" readonly style="width:100%" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -1132,12 +1132,23 @@ async function handleSaveCurve() {
   }
 }
 
+function getCalculatedCurrentStock() {
+  const current = Number(tea.value.currentStock) || 0
+  const change = Number(storageForm.value.stockChange) || 0
+  if (editingStorage.value) {
+    const oldChange = Number(editingStorage.value.stockChange) || 0
+    return (current - oldChange) + change
+  }
+  return current + change
+}
+
 function openStorageDialog(record = null) {
   editingStorage.value = record
   storageForm.value = record ? { ...record } : {
     storageLocation: '', temperature: null, humidity: null,
-    sealCondition: '', stockChange: null, currentStock: null, notes: ''
+    sealCondition: '', stockChange: null, notes: ''
   }
+  delete storageForm.value.currentStock
   storageDialogVisible.value = true
 }
 

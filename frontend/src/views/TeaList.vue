@@ -24,11 +24,11 @@
         </el-col>
         <el-col :xs="12" :sm="6" :md="5">
           <el-select v-model="filterRegion" placeholder="按产区筛选" clearable @change="loadTeas" style="width:100%">
-            <el-option v-for="r in ORIGIN_REGIONS" :key="r" :label="r" :value="r" />
+            <el-option v-for="r in originRegions" :key="r" :label="r" :value="r" />
           </el-select>
         </el-col>
         <el-col :xs="24" :sm="4" :md="4">
-          <el-button @click="loadTeas" type="success" plain>刷新</el-button>
+          <el-button @click="handleRefresh" type="success" plain>刷新</el-button>
         </el-col>
       </el-row>
     </el-card>
@@ -81,8 +81,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Plus, Search, Box, Clock } from '@element-plus/icons-vue'
-import { getTeaList } from '../api/tea'
-import { TEA_CATEGORIES, ORIGIN_REGIONS } from '../utils/constants'
+import { getTeaList, getRegions } from '../api/tea'
+import { TEA_CATEGORIES } from '../utils/constants'
 import StockTrendMini from '../components/StockTrendMini.vue'
 
 const teas = ref([])
@@ -90,6 +90,16 @@ const loading = ref(false)
 const searchKeyword = ref('')
 const filterCategory = ref('')
 const filterRegion = ref('')
+const originRegions = ref([])
+
+async function loadRegions() {
+  try {
+    const res = await getRegions()
+    originRegions.value = res.data || []
+  } catch (e) {
+    console.error('加载产区列表失败', e)
+  }
+}
 
 async function loadTeas() {
   loading.value = true
@@ -98,8 +108,11 @@ async function loadTeas() {
     if (searchKeyword.value) params.keyword = searchKeyword.value
     if (filterCategory.value) params.category = filterCategory.value
     if (filterRegion.value) params.region = filterRegion.value
-    const res = await getTeaList(params)
-    teas.value = res.data || []
+    const [teaRes] = await Promise.all([
+      getTeaList(params),
+      originRegions.value.length === 0 ? loadRegions() : null
+    ])
+    teas.value = teaRes.data || []
   } finally {
     loading.value = false
   }
@@ -107,6 +120,10 @@ async function loadTeas() {
 
 function handleSearch() {
   loadTeas()
+}
+
+async function handleRefresh() {
+  await Promise.all([loadRegions(), loadTeas()])
 }
 
 function getCategoryTagType(category) {
