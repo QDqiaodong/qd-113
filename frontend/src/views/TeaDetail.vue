@@ -502,8 +502,22 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="storageDialogVisible" :title="editingStorage ? '编辑仓储记录' : '添加仓储记录'" width="600px" destroy-on-close>
+    <el-dialog v-model="storageDialogVisible" :title="editingStorage ? '编辑仓储记录' : '添加仓储记录'" width="650px" destroy-on-close>
       <el-form :model="storageForm" label-width="100px">
+        <el-alert
+          v-if="tea.storageMethod"
+          :title="`当前储存方式：${tea.storageMethod}`"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 16px;"
+        >
+          <template v-if="getStorageGuidelines()" #default>
+            <div style="margin-top: 8px;">
+              <el-text size="small">{{ getStorageGuidelines().sealTip }}</el-text>
+            </div>
+          </template>
+        </el-alert>
         <el-form-item label="储存位置">
           <el-input v-model="storageForm.storageLocation" placeholder="如：书房储物柜" />
         </el-form-item>
@@ -511,18 +525,44 @@
           <el-col :span="12">
             <el-form-item label="温度(℃)">
               <el-input-number v-model="storageForm.temperature" :precision="1" :step="0.5" style="width:100%" />
+              <div v-if="getStorageGuidelines()" class="field-guideline">
+                <el-tag :type="getTemperatureStatus() === 'normal' ? 'success' : getTemperatureStatus() === 'warning' ? 'warning' : 'info'" size="small">
+                  {{ getStorageGuidelines().tempSuggestion.label }}
+                </el-tag>
+                <el-text v-if="storageForm.temperature != null" size="small" :type="getTemperatureStatus() === 'normal' ? 'success' : getTemperatureStatus() === 'warning' ? 'warning' : 'info'" style="margin-left: 8px;">
+                  {{ getTemperatureStatusText() }}
+                </el-text>
+              </div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="湿度(%)">
               <el-input-number v-model="storageForm.humidity" :precision="1" :step="1" style="width:100%" />
+              <div v-if="getStorageGuidelines()" class="field-guideline">
+                <el-tag :type="getHumidityStatus() === 'normal' ? 'success' : getHumidityStatus() === 'warning' ? 'warning' : 'info'" size="small">
+                  {{ getStorageGuidelines().humiditySuggestion.label }}
+                </el-tag>
+                <el-text v-if="storageForm.humidity != null" size="small" :type="getHumidityStatus() === 'normal' ? 'success' : getHumidityStatus() === 'warning' ? 'warning' : 'info'" style="margin-left: 8px;">
+                  {{ getHumidityStatusText() }}
+                </el-text>
+              </div>
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item label="密封状况">
           <el-select v-model="storageForm.sealCondition" style="width:100%">
-            <el-option v-for="s in SEAL_CONDITIONS" :key="s" :label="s" :value="s" />
+            <el-option v-for="s in SEAL_CONDITIONS" :key="s" :label="s" :value="s">
+              <span>{{ s }}</span>
+              <el-tag v-if="getStorageGuidelines() && getStorageGuidelines().sealSuggestion.includes(s)" type="success" size="small" style="margin-left: 8px;">
+                推荐
+              </el-tag>
+            </el-option>
           </el-select>
+          <div v-if="getStorageGuidelines()" class="field-guideline">
+            <el-text size="small" type="info">
+              推荐密封状态：{{ getStorageGuidelines().sealSuggestion.join('、') }}
+            </el-text>
+          </div>
         </el-form-item>
         <el-row :gutter="16">
           <el-col :span="12">
@@ -544,6 +584,17 @@
           show-icon
           style="margin-bottom: 16px;"
         />
+        <el-card v-if="getStorageGuidelines() && getStorageGuidelines().tips.length > 0" shadow="never" class="tips-card">
+          <template #header>
+            <div class="tips-card-header">
+              <el-icon><InfoFilled /></el-icon>
+              <span>储存小贴士</span>
+            </div>
+          </template>
+          <ul class="tips-list">
+            <li v-for="(tip, idx) in getStorageGuidelines().tips" :key="idx">{{ tip }}</li>
+          </ul>
+        </el-card>
         <el-form-item label="备注">
           <el-input v-model="storageForm.notes" type="textarea" :rows="2" />
         </el-form-item>
@@ -665,7 +716,7 @@ import {
   getBrewingSessions, createBrewingSession, updateBrewingSession, deleteBrewingSession,
   getTemplateVersion
 } from '../api/tea'
-import { SEAL_CONDITIONS, WATER_QUALITY_OPTIONS, BREWING_METHODS, TEA_CATEGORIES } from '../utils/constants'
+import { SEAL_CONDITIONS, WATER_QUALITY_OPTIONS, BREWING_METHODS, TEA_CATEGORIES, STORAGE_METHOD_GUIDELINES, TEA_STORAGE_CONDITIONS } from '../utils/constants'
 import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
 import StorageEnvironmentPanel from '../components/StorageEnvironmentPanel.vue'
 import TastingRadarChart from '../components/TastingRadarChart.vue'
@@ -892,6 +943,54 @@ function getStockPreviewType() {
   return 'success'
 }
 
+function getStorageGuidelines() {
+  if (!tea.value.storageMethod) return null
+  return STORAGE_METHOD_GUIDELINES[tea.value.storageMethod] || null
+}
+
+function getTemperatureStatus() {
+  if (storageForm.value.temperature == null) return 'unknown'
+  const guidelines = getStorageGuidelines()
+  if (!guidelines) return 'unknown'
+  const { min, max } = guidelines.tempSuggestion
+  const temp = Number(storageForm.value.temperature)
+  if (temp >= min && temp <= max) return 'normal'
+  if (temp < min - 5 || temp > max + 5) return 'warning'
+  return 'warning'
+}
+
+function getTemperatureStatusText() {
+  if (storageForm.value.temperature == null) return ''
+  const guidelines = getStorageGuidelines()
+  if (!guidelines) return ''
+  const { min, max } = guidelines.tempSuggestion
+  const temp = Number(storageForm.value.temperature)
+  if (temp >= min && temp <= max) return '✓ 温度适宜'
+  if (temp < min) return `⚠ 温度偏低，建议不低于${min}℃`
+  return `⚠ 温度偏高，建议不高于${max}℃`
+}
+
+function getHumidityStatus() {
+  if (storageForm.value.humidity == null) return 'unknown'
+  const guidelines = getStorageGuidelines()
+  if (!guidelines) return 'unknown'
+  const { min, max } = guidelines.humiditySuggestion
+  const hum = Number(storageForm.value.humidity)
+  if (hum >= min && hum <= max) return 'normal'
+  return 'warning'
+}
+
+function getHumidityStatusText() {
+  if (storageForm.value.humidity == null) return ''
+  const guidelines = getStorageGuidelines()
+  if (!guidelines) return ''
+  const { min, max } = guidelines.humiditySuggestion
+  const hum = Number(storageForm.value.humidity)
+  if (hum >= min && hum <= max) return '✓ 湿度适宜'
+  if (hum < min) return `⚠ 湿度偏低，建议不低于${min}%`
+  return `⚠ 湿度偏高，建议不高于${max}%`
+}
+
 async function loadTea() {
   loading.value = true
   try {
@@ -1043,6 +1142,50 @@ function openStorageDialog(record = null) {
 }
 
 async function handleSaveStorage() {
+  const current = Number(tea.value.currentStock) || 0
+  const change = Number(storageForm.value.stockChange) || 0
+  let resultStock
+  let previewText
+
+  if (editingStorage.value) {
+    const oldChange = Number(editingStorage.value.stockChange) || 0
+    const effective = current - oldChange
+    resultStock = effective + change
+    previewText = `即将编辑仓储记录：\n\n回退原变动后库存：${effective} ${tea.value.stockUnit || '克'}\n本次变动：${change > 0 ? '+' : ''}${change} ${tea.value.stockUnit || '克'}\n变动后库存：${resultStock} ${tea.value.stockUnit || '克'}`
+  } else {
+    resultStock = current + change
+    previewText = `即将添加仓储记录：\n\n当前库存：${current} ${tea.value.stockUnit || '克'}\n本次变动：${change > 0 ? '+' : ''}${change} ${tea.value.stockUnit || '克'}\n变动后库存：${resultStock} ${tea.value.stockUnit || '克'}`
+  }
+
+  if (storageForm.value.temperature != null || storageForm.value.humidity != null || storageForm.value.sealCondition) {
+    previewText += '\n\n环境记录：'
+    if (storageForm.value.temperature != null) {
+      previewText += `\n温度：${storageForm.value.temperature}℃`
+    }
+    if (storageForm.value.humidity != null) {
+      previewText += `\n湿度：${storageForm.value.humidity}%`
+    }
+    if (storageForm.value.sealCondition) {
+      previewText += `\n密封状况：${storageForm.value.sealCondition}`
+    }
+  }
+
+  if (resultStock < 0) {
+    ElMessage.error('库存变动会导致负库存，请调整')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(previewText, '确认提交仓储记录', {
+      type: resultStock < 50 ? 'warning' : 'info',
+      confirmButtonText: '确认提交',
+      cancelButtonText: '取消',
+      dangerouslyUseHTMLString: false
+    })
+  } catch {
+    return
+  }
+
   saving.value = true
   try {
     if (editingStorage.value) {
@@ -1784,6 +1927,50 @@ onUnmounted(() => {
   padding: 10px;
   background: #f8f9fa;
   border-radius: 6px;
+}
+
+.field-guideline {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tips-card {
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+  border: 1px solid #86efac;
+}
+
+.tips-card :deep(.el-card__header) {
+  padding: 10px 16px;
+  background: transparent;
+  border-bottom: 1px dashed #86efac;
+}
+
+.tips-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #166534;
+  font-size: 14px;
+}
+
+.tips-card :deep(.el-card__body) {
+  padding: 12px 16px;
+}
+
+.tips-list {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.tips-list li {
+  font-size: 13px;
+  color: #166534;
+  line-height: 1.8;
 }
 
 @media (max-width: 768px) {
