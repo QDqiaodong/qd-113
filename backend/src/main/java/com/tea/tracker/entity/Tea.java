@@ -55,6 +55,9 @@ public class Tea {
     @OneToMany(mappedBy = "tea", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TastingNote> tastingNotes = new ArrayList<>();
 
+    @OneToMany(mappedBy = "tea", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<BrewingSession> brewingSessions = new ArrayList<>();
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

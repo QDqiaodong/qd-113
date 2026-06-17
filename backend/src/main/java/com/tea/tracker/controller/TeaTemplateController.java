@@ -1,6 +1,7 @@
 package com.tea.tracker.controller;
 
 import com.tea.tracker.dto.ApiResponse;
+import com.tea.tracker.dto.TemplateVersionResponse;
 import com.tea.tracker.service.TeaTemplateCacheService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -92,5 +93,19 @@ public class TeaTemplateController {
             result.put(category, info);
         });
         return ApiResponse.success(result);
+    }
+
+    @GetMapping("/versions")
+    public ApiResponse<List<TemplateVersionResponse>> getAllTemplateVersions() {
+        return ApiResponse.success(templateCacheService.getAllTemplateVersionsFromDb());
+    }
+
+    @GetMapping("/{category}/version")
+    public ApiResponse<TemplateVersionResponse> getTemplateVersion(@PathVariable String category) {
+        TemplateVersionResponse version = templateCacheService.getTemplateVersionFromDb(category);
+        if (version == null) {
+            return ApiResponse.error(404, "未找到该茶类的版本记录");
+        }
+        return ApiResponse.success(version);
     }
 }

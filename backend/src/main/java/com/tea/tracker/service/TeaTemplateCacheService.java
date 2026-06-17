@@ -2,15 +2,20 @@ package com.tea.tracker.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tea.tracker.dto.TemplateVersionResponse;
+import com.tea.tracker.entity.TemplateVersion;
+import com.tea.tracker.repository.TemplateVersionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -19,11 +24,12 @@ public class TeaTemplateCacheService {
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final TemplateVersionRepository templateVersionRepository;
 
     private static final String TEMPLATE_KEY_PREFIX = "tea:template:";
     private static final String VERSION_KEY_PREFIX = "tea:template:version:";
     private static final long TEMPLATE_TTL_HOURS = 24;
-    private static final long CURRENT_VERSION = 2L;
+    private static final long CURRENT_VERSION = 3L;
 
     private final ConcurrentHashMap<String, CacheHitStatus> lastHitStatus = new ConcurrentHashMap<>();
 
@@ -167,10 +173,49 @@ public class TeaTemplateCacheService {
             String json = objectMapper.writeValueAsString(template);
             redisTemplate.opsForValue().set(key, json, TEMPLATE_TTL_HOURS, TimeUnit.HOURS);
             redisTemplate.opsForValue().set(versionKey, String.valueOf(CURRENT_VERSION), TEMPLATE_TTL_HOURS, TimeUnit.HOURS);
+            persistVersionToDb(teaCategory, CURRENT_VERSION, "内置默认模板");
             log.info("Cached brewing template for: {} (version={})", teaCategory, CURRENT_VERSION);
         } catch (JsonProcessingException e) {
             log.warn("Failed to cache template for {}: {}", teaCategory, e.getMessage());
         }
+    }
+
+    @Transactional
+    public void persistVersionToDb(String teaCategory, Long version, String paramSource) {
+        TemplateVersion tv = templateVersionRepository.findByTeaCategory(teaCategory)
+                .orElseGet(() -> {
+                    TemplateVersion newTv = new TemplateVersion();
+                    newTv.setTeaCategory(teaCategory);
+                    return newTv;
+                });
+        tv.setVersion(version);
+        tv.setParamSource(paramSource);
+        templateVersionRepository.save(tv);
+    }
+
+    @Transactional(readOnly = true)
+    public TemplateVersionResponse getTemplateVersionFromDb(String teaCategory) {
+        return templateVersionRepository.findByTeaCategory(teaCategory)
+                .map(this::toVersionResponse)
+                .orElse(null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TemplateVersionResponse> getAllTemplateVersionsFromDb() {
+        return templateVersionRepository.findAllByOrderByTeaCategoryAsc()
+                .stream()
+                .map(this::toVersionResponse)
+                .collect(Collectors.toList());
+    }
+
+    private TemplateVersionResponse toVersionResponse(TemplateVersion tv) {
+        TemplateVersionResponse resp = new TemplateVersionResponse();
+        resp.setId(tv.getId());
+        resp.setTeaCategory(tv.getTeaCategory());
+        resp.setVersion(tv.getVersion());
+        resp.setParamSource(tv.getParamSource());
+        resp.setUpdatedAt(tv.getUpdatedAt());
+        return resp;
     }
 
     private Map<String, Object> buildDefaultTemplate(String teaCategory) {

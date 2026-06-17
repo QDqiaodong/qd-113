@@ -91,3 +91,27 @@ export function getAgingTimeline(teaId) {
 export function getAgingTimelines(category) {
   return request.get('/teas/aging-timelines', { params: { category } })
 }
+
+export function getBrewingSessions(teaId) {
+  return request.get(`/teas/${teaId}/brewing-sessions`)
+}
+
+export function createBrewingSession(teaId, data) {
+  return request.post(`/teas/${teaId}/brewing-sessions`, data)
+}
+
+export function updateBrewingSession(teaId, id, data) {
+  return request.put(`/teas/${teaId}/brewing-sessions/${id}`, data)
+}
+
+export function deleteBrewingSession(teaId, id) {
+  return request.delete(`/teas/${teaId}/brewing-sessions/${id}`)
+}
+
+export function getTemplateVersions() {
+  return request.get('/tea-templates/versions')
+}
+
+export function getTemplateVersion(category) {
+  return request.get(`/tea-templates/${category}/version`)
+}

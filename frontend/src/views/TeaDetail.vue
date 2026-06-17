@@ -162,6 +162,12 @@
             <el-button type="primary" size="small" @click="openBrewingDialog()">添加参数</el-button>
           </div>
         </div>
+        <div v-if="templateVersionInfo" class="template-version-bar">
+          <span class="version-label">📋 {{ tea.teaCategory }}模板版本</span>
+          <span class="version-tag">v{{ templateVersionInfo.version }}</span>
+          <span class="version-source">来源：{{ templateVersionInfo.paramSource }}</span>
+          <span class="version-time">更新：{{ formatTime(templateVersionInfo.updatedAt) }}</span>
+        </div>
         <div v-for="(group, method) in groupedBrewingParams" :key="method" class="brewing-method-group">
           <div class="group-header">
             <span class="group-title">
@@ -358,6 +364,53 @@
           </el-col>
         </el-row>
         <el-empty v-if="tastingNotes.length === 0" description="暂无品饮记录，记录你的品茶体验吧" />
+      </el-tab-pane>
+
+      <el-tab-pane label="冲泡记录" name="session">
+        <div class="tab-header">
+          <span class="section-title">单次冲泡记录</span>
+          <el-button type="primary" size="small" @click="openSessionDialog()">添加记录</el-button>
+        </div>
+        <el-row :gutter="16">
+          <el-col v-for="session in brewingSessions" :key="session.id" :xs="24" :sm="12">
+            <el-card class="session-card" shadow="hover">
+              <div class="session-card-header">
+                <span class="session-date">{{ formatTime(session.sessionDate) }}</span>
+                <div>
+                  <el-tag v-if="session.brewingParamName" size="small" type="info">{{ session.brewingParamName }}</el-tag>
+                  <el-button size="small" text type="primary" @click="openSessionDialog(session)">编辑</el-button>
+                  <el-button size="small" text type="danger" @click="handleDeleteSession(session.id)">删除</el-button>
+                </div>
+              </div>
+              <div class="session-grid">
+                <div class="session-item">
+                  <span class="session-label">实际水温</span>
+                  <span class="session-value">{{ session.actualWaterTemperature != null ? session.actualWaterTemperature + '℃' : '-' }}</span>
+                </div>
+                <div class="session-item">
+                  <span class="session-label">第一泡</span>
+                  <span class="session-value">{{ session.firstInfusionTime != null ? session.firstInfusionTime + 's' : '-' }}</span>
+                </div>
+                <div class="session-item">
+                  <span class="session-label">第二泡</span>
+                  <span class="session-value">{{ session.secondInfusionTime != null ? session.secondInfusionTime + 's' : '-' }}</span>
+                </div>
+                <div class="session-item">
+                  <span class="session-label">第三泡</span>
+                  <span class="session-value">{{ session.thirdInfusionTime != null ? session.thirdInfusionTime + 's' : '-' }}</span>
+                </div>
+                <div class="session-item">
+                  <span class="session-label">后续泡</span>
+                  <span class="session-value">{{ session.subsequentInfusionTime != null ? session.subsequentInfusionTime + 's' : '-' }}</span>
+                </div>
+              </div>
+              <div v-if="session.tasteImpression" class="session-impression">
+                {{ session.tasteImpression }}
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+        <el-empty v-if="brewingSessions.length === 0" description="暂无冲泡记录，记录你的每次冲泡体验吧" />
       </el-tab-pane>
 
       <el-tab-pane label="陈化时间轴" name="aging">
@@ -568,6 +621,33 @@
         <el-button type="primary" @click="handleSaveTasting" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="sessionDialogVisible" :title="editingSession ? '编辑冲泡记录' : '添加冲泡记录'" width="600px" destroy-on-close>
+      <el-form :model="sessionForm" label-width="100px">
+        <el-form-item label="冲泡方案">
+          <el-select v-model="sessionForm.brewingParamId" placeholder="选择关联的冲泡方案（可选）" clearable style="width:100%">
+            <el-option v-for="p in brewingParams" :key="p.id" :label="p.paramName || '冲泡方案'" :value="p.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="实际水温(℃)">
+          <el-slider v-model="sessionForm.actualWaterTemperature" :min="50" :max="100" show-input />
+        </el-form-item>
+        <el-divider>各泡出汤时长(秒)</el-divider>
+        <el-row :gutter="16">
+          <el-col :span="6"><el-form-item label="第一泡"><el-input-number v-model="sessionForm.firstInfusionTime" :min="1" :max="300" style="width:100%" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item label="第二泡"><el-input-number v-model="sessionForm.secondInfusionTime" :min="1" :max="300" style="width:100%" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item label="第三泡"><el-input-number v-model="sessionForm.thirdInfusionTime" :min="1" :max="300" style="width:100%" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item label="后续泡"><el-input-number v-model="sessionForm.subsequentInfusionTime" :min="1" :max="300" style="width:100%" /></el-form-item></el-col>
+        </el-row>
+        <el-form-item label="口感印象">
+          <el-input v-model="sessionForm.tasteImpression" type="textarea" :rows="3" placeholder="记录本次冲泡的口感体验" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="sessionDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveSession" :loading="saving">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -581,7 +661,9 @@ import {
   getBrewingParams, createBrewingParam, updateBrewingParam, deleteBrewingParam,
   getStorageRecords, createStorageRecord, updateStorageRecord, deleteStorageRecord,
   getTastingNotes, createTastingNote, updateTastingNote, deleteTastingNote,
-  getBrewingTemplateByCategory
+  getBrewingTemplateByCategory,
+  getBrewingSessions, createBrewingSession, updateBrewingSession, deleteBrewingSession,
+  getTemplateVersion
 } from '../api/tea'
 import { SEAL_CONDITIONS, WATER_QUALITY_OPTIONS, BREWING_METHODS, TEA_CATEGORIES } from '../utils/constants'
 import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
@@ -630,18 +712,23 @@ const tea = ref({})
 const brewingParams = ref([])
 const storageRecords = ref([])
 const tastingNotes = ref([])
+const brewingSessions = ref([])
+const templateVersionInfo = ref(null)
 
 const brewingDialogVisible = ref(false)
 const storageDialogVisible = ref(false)
 const tastingDialogVisible = ref(false)
+const sessionDialogVisible = ref(false)
 
 const editingBrewing = ref(null)
 const editingStorage = ref(null)
 const editingTasting = ref(null)
+const editingSession = ref(null)
 
 const brewingForm = ref({})
 const storageForm = ref({})
 const tastingForm = ref({})
+const sessionForm = ref({})
 const loadingTemplate = ref(false)
 
 function formatTime(t) {
@@ -808,16 +895,27 @@ function getStockPreviewType() {
 async function loadTea() {
   loading.value = true
   try {
-    const [teaRes, brewingRes, storageRes, tastingRes] = await Promise.all([
+    const [teaRes, brewingRes, storageRes, tastingRes, sessionRes] = await Promise.all([
       getTeaById(teaId),
       getBrewingParams(teaId),
       getStorageRecords(teaId),
-      getTastingNotes(teaId)
+      getTastingNotes(teaId),
+      getBrewingSessions(teaId)
     ])
     tea.value = teaRes.data
     brewingParams.value = brewingRes.data || []
     storageRecords.value = storageRes.data || []
     tastingNotes.value = tastingRes.data || []
+    brewingSessions.value = sessionRes.data || []
+
+    if (teaRes.data.teaCategory) {
+      try {
+        const verRes = await getTemplateVersion(teaRes.data.teaCategory)
+        templateVersionInfo.value = verRes.data
+      } catch {
+        templateVersionInfo.value = null
+      }
+    }
   } finally {
     loading.value = false
   }
@@ -1010,6 +1108,45 @@ async function handleDeleteTasting(id) {
   ElMessage.success('删除成功')
   const res = await getTastingNotes(teaId)
   tastingNotes.value = res.data || []
+}
+
+function openSessionDialog(session = null) {
+  editingSession.value = session
+  sessionForm.value = session ? { ...session } : {
+    brewingParamId: null,
+    actualWaterTemperature: null,
+    firstInfusionTime: null,
+    secondInfusionTime: null,
+    thirdInfusionTime: null,
+    subsequentInfusionTime: null,
+    tasteImpression: ''
+  }
+  sessionDialogVisible.value = true
+}
+
+async function handleSaveSession() {
+  saving.value = true
+  try {
+    if (editingSession.value) {
+      await updateBrewingSession(teaId, editingSession.value.id, sessionForm.value)
+    } else {
+      await createBrewingSession(teaId, sessionForm.value)
+    }
+    ElMessage.success('保存成功')
+    sessionDialogVisible.value = false
+    const res = await getBrewingSessions(teaId)
+    brewingSessions.value = res.data || []
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleDeleteSession(id) {
+  await ElMessageBox.confirm('确定删除此冲泡记录？', '确认删除', { type: 'warning' })
+  await deleteBrewingSession(teaId, id)
+  ElMessage.success('删除成功')
+  const res = await getBrewingSessions(teaId)
+  brewingSessions.value = res.data || []
 }
 
 onMounted(loadTea)
@@ -1555,6 +1692,98 @@ onUnmounted(() => {
   font-size: 14px;
   color: #606266;
   white-space: nowrap;
+}
+
+.template-version-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  border: 1px solid #7dd3fc;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.version-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0369a1;
+}
+
+.version-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  background: #0284c7;
+  color: #fff;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.version-source {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.version-time {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-left: auto;
+}
+
+.session-card {
+  margin-bottom: 16px;
+}
+
+.session-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.session-date {
+  font-size: 14px;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.session-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.session-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.session-label {
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.session-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d6a4f;
+}
+
+.session-impression {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #495057;
+  line-height: 1.6;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
 }
 
 @media (max-width: 768px) {
