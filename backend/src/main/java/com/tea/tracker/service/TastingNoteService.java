@@ -82,8 +82,36 @@ public class TastingNoteService {
         note.setTasteDesc(request.getTasteDesc());
         note.setAftertasteScore(request.getAftertasteScore());
         note.setAftertasteDesc(request.getAftertasteDesc());
-        note.setOverallScore(request.getOverallScore());
+        note.setOverallScore(calculateOverallScore(request));
         note.setImpression(request.getImpression());
+    }
+
+    private Integer calculateOverallScore(TastingNoteRequest request) {
+        if (request.getOverallScore() != null && request.getOverallScore() > 0) {
+            return request.getOverallScore();
+        }
+        int count = 0;
+        int sum = 0;
+        if (request.getAromaScore() != null) {
+            sum += request.getAromaScore();
+            count++;
+        }
+        if (request.getLiquorColorScore() != null) {
+            sum += request.getLiquorColorScore();
+            count++;
+        }
+        if (request.getTasteScore() != null) {
+            sum += request.getTasteScore();
+            count++;
+        }
+        if (request.getAftertasteScore() != null) {
+            sum += request.getAftertasteScore();
+            count++;
+        }
+        if (count == 0) {
+            return 0;
+        }
+        return Math.round((float) sum / count);
     }
 
     private TastingNoteResponse toResponse(TastingNote note) {

@@ -37,6 +37,43 @@ export const TEA_STORAGE_CONDITIONS = {
   '默认': { tempMin: 15, tempMax: 25, humidityMin: 50, humidityMax: 70 }
 }
 
+export const TASTING_SCORE_ANCHORS = [
+  { value: 0, label: '未评分' },
+  { value: 20, label: '较差' },
+  { value: 40, label: '一般' },
+  { value: 60, label: '良好' },
+  { value: 80, label: '优秀' },
+  { value: 100, label: '极佳' }
+]
+
+export const TASTING_SCORE_CATEGORIES = [
+  { key: 'aroma', label: '香气', desc: '如：花香馥郁、蜜香高扬' },
+  { key: 'liquorColor', label: '汤色', desc: '如：金黄透亮、橙红明亮' },
+  { key: 'taste', label: '滋味', desc: '如：醇厚甘甜、鲜爽回甘' },
+  { key: 'aftertaste', label: '回甘', desc: '如：回甘持久、生津明显' }
+]
+
+export function getScoreLabel(score) {
+  if (score == null) return '未评分'
+  const s = Number(score)
+  if (s >= 90) return '极佳'
+  if (s >= 75) return '优秀'
+  if (s >= 60) return '良好'
+  if (s >= 40) return '一般'
+  if (s >= 20) return '较差'
+  return '待评'
+}
+
+export function getScoreColor(score) {
+  if (score == null) return '#909399'
+  const s = Number(score)
+  if (s >= 90) return '#67c23a'
+  if (s >= 75) return '#409eff'
+  if (s >= 60) return '#e6a23c'
+  if (s >= 40) return '#f56c6c'
+  return '#909399'
+}
+
 export const STORAGE_METHOD_GUIDELINES = {
   '常温密封': {
     tempSuggestion: { min: 15, max: 25, label: '建议温度 15-25℃' },

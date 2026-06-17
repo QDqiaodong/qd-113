@@ -605,66 +605,113 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="tastingDialogVisible" :title="editingTasting ? '编辑品饮记录' : '添加品饮记录'" width="700px" destroy-on-close>
-      <el-form :model="tastingForm" label-width="100px">
+    <el-dialog v-model="tastingDialogVisible" :title="editingTasting ? '编辑品饮记录' : '添加品饮记录'" width="750px" destroy-on-close>
+      <div class="tasting-overall-header">
+        <div class="overall-score-display">
+          <div class="overall-score-label">综合评分</div>
+          <div class="overall-score-value" :style="{ color: getScoreColor(calculatedOverallScore) }">
+            {{ calculatedOverallScore }}
+          </div>
+          <div class="overall-score-grade">{{ getScoreLabel(calculatedOverallScore) }}</div>
+        </div>
+        <div class="overall-score-detail">
+          <div class="score-breakdown">
+            <span v-for="cat in TASTING_SCORE_CATEGORIES" :key="cat.key" class="score-item">
+              <span class="score-cat">{{ cat.label }}</span>
+              <span class="score-num" :style="{ color: getScoreColor(tastingForm[cat.key + 'Score']) }">
+                {{ tastingForm[cat.key + 'Score'] || 0 }}
+              </span>
+            </span>
+          </div>
+          <div class="overall-toggle">
+            <el-switch 
+              v-model="manualOverallScore" 
+              size="small"
+              active-text="手动调整"
+              inactive-text="自动计算"
+            />
+          </div>
+        </div>
+      </div>
+
+      <el-form :model="tastingForm" label-width="90px" class="tasting-form">
         <el-form-item label="冲泡方式">
           <el-select v-model="tastingForm.brewingMethod" style="width:100%">
             <el-option v-for="b in BREWING_METHODS" :key="b" :label="b" :value="b" />
           </el-select>
         </el-form-item>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="香气评分">
-              <el-rate v-model="tastingForm.aromaScore" :max="5" show-text />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="汤色评分">
-              <el-rate v-model="tastingForm.liquorColorScore" :max="5" show-text />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="香气描述">
-              <el-input v-model="tastingForm.aromaDesc" placeholder="如：花香馥郁" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="汤色描述">
-              <el-input v-model="tastingForm.liquorColorDesc" placeholder="如：金黄透亮" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="口感评分">
-              <el-rate v-model="tastingForm.tasteScore" :max="5" show-text />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="回甘评分">
-              <el-rate v-model="tastingForm.aftertasteScore" :max="5" show-text />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="口感描述">
-              <el-input v-model="tastingForm.tasteDesc" placeholder="如：醇厚甘甜" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="回甘描述">
-              <el-input v-model="tastingForm.aftertasteDesc" placeholder="如：回甘持久" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="综合评分">
-          <el-slider v-model="tastingForm.overallScore" :min="0" :max="100" show-input />
+
+        <div v-for="cat in TASTING_SCORE_CATEGORIES" :key="cat.key" class="tasting-score-section">
+          <el-divider class="score-divider">
+            <span class="divider-text">{{ cat.label }}评分</span>
+          </el-divider>
+          <el-form-item :label="cat.label + '评分'" class="slider-form-item">
+            <div class="score-slider-wrapper">
+              <el-slider 
+                v-model="tastingForm[cat.key + 'Score']" 
+                :min="0" 
+                :max="100" 
+                :step="1"
+                :marks="scoreMarks"
+                show-stops
+                show-tooltip
+                :format-tooltip="(val) => val + '分 - ' + getScoreLabel(val)"
+                class="score-slider"
+              />
+              <div class="score-display">
+                <span class="score-value" :style="{ color: getScoreColor(tastingForm[cat.key + 'Score']) }">
+                  {{ tastingForm[cat.key + 'Score'] || 0 }}
+                </span>
+                <span class="score-label">{{ getScoreLabel(tastingForm[cat.key + 'Score']) }}</span>
+              </div>
+            </div>
+          </el-form-item>
+          <el-form-item :label="cat.label + '描述'">
+            <el-input 
+              v-model="tastingForm[cat.key + 'Desc']" 
+              :placeholder="cat.desc"
+              maxlength="200"
+              show-word-limit
+            />
+          </el-form-item>
+        </div>
+
+        <el-divider class="score-divider">
+          <span class="divider-text">综合评分</span>
+        </el-divider>
+        <el-form-item label="综合评分" class="slider-form-item">
+          <div class="score-slider-wrapper">
+            <el-slider 
+              v-model="tastingForm.overallScore" 
+              :min="0" 
+              :max="100" 
+              :step="1"
+              :marks="scoreMarks"
+              show-stops
+              show-tooltip
+              :format-tooltip="(val) => val + '分 - ' + getScoreLabel(val)"
+              class="score-slider"
+              :disabled="!manualOverallScore"
+            />
+            <div class="score-display">
+              <span class="score-value" :style="{ color: getScoreColor(tastingForm.overallScore) }">
+                {{ tastingForm.overallScore || 0 }}
+              </span>
+              <span class="score-label">{{ getScoreLabel(tastingForm.overallScore) }}</span>
+              <el-tag v-if="!manualOverallScore" type="info" size="small" class="auto-tag">自动</el-tag>
+            </div>
+          </div>
         </el-form-item>
+
         <el-form-item label="整体感受">
-          <el-input v-model="tastingForm.impression" type="textarea" :rows="3" placeholder="记录你的品饮体验" />
+          <el-input 
+            v-model="tastingForm.impression" 
+            type="textarea" 
+            :rows="4" 
+            placeholder="记录你的品饮体验，包括茶汤特点、风味层次、个人感受等"
+            maxlength="1000"
+            show-word-limit
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -703,7 +750,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, InfoFilled, TrendCharts } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -716,7 +763,7 @@ import {
   getBrewingSessions, createBrewingSession, updateBrewingSession, deleteBrewingSession,
   getTemplateVersion
 } from '../api/tea'
-import { SEAL_CONDITIONS, WATER_QUALITY_OPTIONS, BREWING_METHODS, TEA_CATEGORIES, STORAGE_METHOD_GUIDELINES, TEA_STORAGE_CONDITIONS } from '../utils/constants'
+import { SEAL_CONDITIONS, WATER_QUALITY_OPTIONS, BREWING_METHODS, TEA_CATEGORIES, STORAGE_METHOD_GUIDELINES, TEA_STORAGE_CONDITIONS, TASTING_SCORE_ANCHORS, TASTING_SCORE_CATEGORIES, getScoreLabel, getScoreColor } from '../utils/constants'
 import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
 import StorageEnvironmentPanel from '../components/StorageEnvironmentPanel.vue'
 import TastingRadarChart from '../components/TastingRadarChart.vue'
@@ -781,6 +828,51 @@ const storageForm = ref({})
 const tastingForm = ref({})
 const sessionForm = ref({})
 const loadingTemplate = ref(false)
+
+const manualOverallScore = ref(false)
+
+const scoreMarks = {
+  0: '0',
+  20: '较差',
+  40: '一般',
+  60: '良好',
+  80: '优秀',
+  100: '极佳'
+}
+
+const calculatedOverallScore = computed(() => {
+  const scores = [
+    tastingForm.value.aromaScore,
+    tastingForm.value.liquorColorScore,
+    tastingForm.value.tasteScore,
+    tastingForm.value.aftertasteScore
+  ].filter(s => s != null && s > 0)
+  
+  if (scores.length === 0) return 0
+  const sum = scores.reduce((a, b) => a + Number(b), 0)
+  return Math.round(sum / scores.length)
+})
+
+watch(
+  () => [
+    tastingForm.value.aromaScore,
+    tastingForm.value.liquorColorScore,
+    tastingForm.value.tasteScore,
+    tastingForm.value.aftertasteScore
+  ],
+  () => {
+    if (!manualOverallScore.value) {
+      tastingForm.value.overallScore = calculatedOverallScore.value
+    }
+  },
+  { deep: true }
+)
+
+watch(manualOverallScore, (newVal) => {
+  if (!newVal) {
+    tastingForm.value.overallScore = calculatedOverallScore.value
+  }
+})
 
 function formatTime(t) {
   if (!t) return '-'
@@ -1231,10 +1323,16 @@ async function handleDeleteStorage(id) {
 
 function openTastingDialog(note = null) {
   editingTasting.value = note
-  tastingForm.value = note ? { ...note } : {
-    brewingMethod: '', aromaScore: 0, aromaDesc: '', liquorColorScore: 0,
-    liquorColorDesc: '', tasteScore: 0, tasteDesc: '', aftertasteScore: 0,
-    aftertasteDesc: '', overallScore: 80, impression: ''
+  if (note) {
+    tastingForm.value = { ...note }
+    manualOverallScore.value = true
+  } else {
+    tastingForm.value = {
+      brewingMethod: '', aromaScore: 0, aromaDesc: '', liquorColorScore: 0,
+      liquorColorDesc: '', tasteScore: 0, tasteDesc: '', aftertasteScore: 0,
+      aftertasteDesc: '', overallScore: 0, impression: ''
+    }
+    manualOverallScore.value = false
   }
   tastingDialogVisible.value = true
 }
@@ -1984,6 +2082,143 @@ onUnmounted(() => {
   line-height: 1.8;
 }
 
+.tasting-overall-header {
+  display: flex;
+  gap: 24px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f0fff4, #d8f3dc);
+  border: 1px solid #52b788;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.overall-score-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  text-align: center;
+}
+
+.overall-score-label {
+  font-size: 13px;
+  color: #6c757d;
+  margin-bottom: 4px;
+}
+
+.overall-score-value {
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.overall-score-grade {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d6a4f;
+  padding: 2px 12px;
+  background: rgba(82, 183, 136, 0.2);
+  border-radius: 12px;
+}
+
+.overall-score-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.score-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.score-breakdown .score-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+}
+
+.score-breakdown .score-cat {
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.score-breakdown .score-num {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.overall-toggle {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tasting-form {
+  margin-top: 0;
+}
+
+.tasting-score-section {
+  margin-bottom: 8px;
+}
+
+.score-divider {
+  margin: 16px 0 12px;
+}
+
+.divider-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d6a4f;
+}
+
+.slider-form-item {
+  margin-bottom: 12px;
+}
+
+.score-slider-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.score-slider {
+  flex: 1;
+}
+
+.score-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 100px;
+  justify-content: flex-end;
+}
+
+.score-display .score-value {
+  font-size: 24px;
+  font-weight: 700;
+  min-width: 40px;
+  text-align: right;
+}
+
+.score-display .score-label {
+  font-size: 13px;
+  color: #6c757d;
+  white-space: nowrap;
+}
+
+.auto-tag {
+  margin-left: 4px;
+}
+
 @media (max-width: 768px) {
   .tea-hero {
     flex-direction: column;
@@ -1996,6 +2231,19 @@ onUnmounted(() => {
   }
   .stock-trend-summary {
     justify-content: flex-start;
+  }
+  .tasting-overall-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .overall-score-display {
+    min-width: unset;
+  }
+  .score-display {
+    min-width: 80px;
+  }
+  .score-display .score-value {
+    font-size: 20px;
   }
 }
 </style>
