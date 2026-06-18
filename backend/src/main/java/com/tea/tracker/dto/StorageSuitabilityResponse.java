@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class StorageSuitabilityResponse {
@@ -26,4 +27,7 @@ public class StorageSuitabilityResponse {
     private LocalDateTime recordDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Boolean hasRisk;
+    private String riskLevel;
+    private List<String> abnormalItems;
 }

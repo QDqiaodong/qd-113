@@ -289,6 +289,53 @@ public class StorageSuitabilityService {
         resp.setRecordDate(record.getRecordDate());
         resp.setCreatedAt(record.getCreatedAt());
         resp.setUpdatedAt(record.getUpdatedAt());
+
+        List<String> abnormalItems = new ArrayList<>();
+        String riskLevel = "正常";
+        boolean hasRisk = false;
+
+        if (record.getTemperatureScore() != null && record.getTemperatureScore() < 20) {
+            abnormalItems.add("温度异常");
+            hasRisk = true;
+            if (record.getTemperatureScore() < 10) {
+                riskLevel = "高风险";
+            } else if ("正常".equals(riskLevel)) {
+                riskLevel = "中风险";
+            }
+        }
+
+        if (record.getHumidityScore() != null && record.getHumidityScore() < 20) {
+            abnormalItems.add("湿度异常");
+            hasRisk = true;
+            if (record.getHumidityScore() < 10) {
+                riskLevel = "高风险";
+            } else if ("正常".equals(riskLevel)) {
+                riskLevel = "中风险";
+            }
+        }
+
+        if (record.getSealScore() != null && record.getSealScore() < 12) {
+            abnormalItems.add("密封异常");
+            hasRisk = true;
+            if (record.getSealScore() < 8) {
+                riskLevel = "高风险";
+            } else if ("正常".equals(riskLevel)) {
+                riskLevel = "中风险";
+            }
+        }
+
+        if (record.getStorageMethodScore() != null && record.getStorageMethodScore() < 15) {
+            abnormalItems.add("储存方式不匹配");
+            hasRisk = true;
+            if ("正常".equals(riskLevel)) {
+                riskLevel = "低风险";
+            }
+        }
+
+        resp.setHasRisk(hasRisk);
+        resp.setRiskLevel(riskLevel);
+        resp.setAbnormalItems(abnormalItems);
+
         return resp;
     }
 }

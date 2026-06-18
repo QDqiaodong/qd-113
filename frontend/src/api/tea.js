@@ -167,3 +167,27 @@ export function syncBrewingParam(teaId, data) {
 export function getBrewingParamSyncRecords(teaId, type = 'target') {
   return request.get(`/teas/${teaId}/brewing-params/sync-records`, { params: { type } })
 }
+
+export function createRiskAction(teaId, data) {
+  return request.post(`/teas/${teaId}/risk-actions`, data)
+}
+
+export function updateRiskAction(teaId, id, data) {
+  return request.put(`/teas/${teaId}/risk-actions/${id}`, data)
+}
+
+export function getRiskActions(teaId, status) {
+  return request.get(`/teas/${teaId}/risk-actions`, { params: { status } })
+}
+
+export function getRiskActionById(teaId, id) {
+  return request.get(`/teas/${teaId}/risk-actions/${id}`)
+}
+
+export function getRiskActionsBySuitability(teaId, suitabilityId) {
+  return request.get(`/teas/${teaId}/risk-actions/suitability/${suitabilityId}`)
+}
+
+export function deleteRiskAction(teaId, id) {
+  return request.delete(`/teas/${teaId}/risk-actions/${id}`)
+}

@@ -280,11 +280,13 @@
         </div>
 
         <el-card class="environment-card" shadow="never" v-if="storageRecords.length > 0">
-          <StorageEnvironmentPanel 
-            :storage-records="storageRecords"
-            :tea-category="tea.teaCategory"
-            :stock-unit="tea.stockUnit || '克'"
-          />
+          <StorageEnvironmentPanel
+                :storage-records="storageRecords"
+                :tea-category="tea.teaCategory"
+                :stock-unit="tea.stockUnit || '克'"
+                :risk-actions="riskActions"
+                @view-risk="goToSuitabilityView"
+              />
         </el-card>
 
         <div class="tab-header" style="margin-top: 20px;">
@@ -827,7 +829,7 @@ import {
   getTastingNotes, createTastingNote, updateTastingNote, deleteTastingNote,
   getBrewingTemplateByCategory,
   getBrewingSessions, createBrewingSession, updateBrewingSession, deleteBrewingSession,
-  getTemplateVersion
+  getTemplateVersion, getRiskActions
 } from '../api/tea'
 import { SEAL_CONDITIONS, WATER_QUALITY_OPTIONS, BREWING_METHODS, TEA_CATEGORIES, STORAGE_METHOD_GUIDELINES, TEA_STORAGE_CONDITIONS, TASTING_SCORE_ANCHORS, TASTING_SCORE_CATEGORIES, getScoreLabel, getScoreColor } from '../utils/constants'
 import BrewingCurveEditor from '../components/BrewingCurveEditor.vue'
@@ -878,6 +880,7 @@ const brewingParams = ref([])
 const storageRecords = ref([])
 const tastingNotes = ref([])
 const brewingSessions = ref([])
+const riskActions = ref([])
 const templateVersionInfo = ref(null)
 
 const brewingDialogVisible = ref(false)
@@ -1173,18 +1176,20 @@ function getHumidityStatusText() {
 async function loadTea() {
   loading.value = true
   try {
-    const [teaRes, brewingRes, storageRes, tastingRes, sessionRes] = await Promise.all([
+    const [teaRes, brewingRes, storageRes, tastingRes, sessionRes, riskRes] = await Promise.all([
       getTeaById(teaId),
       getBrewingParams(teaId),
       getStorageRecords(teaId),
       getTastingNotes(teaId),
-      getBrewingSessions(teaId)
+      getBrewingSessions(teaId),
+      getRiskActions(teaId).catch(() => ({ data: [] }))
     ])
     tea.value = teaRes.data
     brewingParams.value = brewingRes.data || []
     storageRecords.value = storageRes.data || []
     tastingNotes.value = tastingRes.data || []
     brewingSessions.value = sessionRes.data || []
+    riskActions.value = riskRes.data || []
 
     if (teaRes.data.teaCategory) {
       try {
@@ -1204,6 +1209,10 @@ async function handleDeleteTea() {
   await deleteTea(teaId)
   ElMessage.success('删除成功')
   router.push('/')
+}
+
+function goToSuitabilityView() {
+  router.push(`/teas/${teaId}/suitability`)
 }
 
 function openBrewingDialog(param = null) {

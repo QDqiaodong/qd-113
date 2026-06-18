@@ -1,20 +1,33 @@
 <template>
   <div class="storage-environment-panel">
     <div class="panel-header">
-      <h3 class="panel-title">茶仓环境监控</h3>
-      <div class="legend">
-        <div class="legend-item">
-          <span class="legend-dot status-good"></span>
-          <span>适宜</span>
+      <div class="panel-header-left">
+        <h3 class="panel-title">茶仓环境监控</h3>
+        <div class="legend">
+          <div class="legend-item">
+            <span class="legend-dot status-good"></span>
+            <span>适宜</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot status-warning"></span>
+            <span>注意</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot status-danger"></span>
+            <span>不适宜</span>
+          </div>
         </div>
-        <div class="legend-item">
-          <span class="legend-dot status-warning"></span>
-          <span>注意</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-dot status-danger"></span>
-          <span>不适宜</span>
-        </div>
+      </div>
+      <div v-if="riskSummary.total > 0" class="risk-summary" @click="$emit('view-risk')">
+        <el-badge :value="riskSummary.pending" :max="99" type="danger" class="risk-badge">
+          <div class="risk-summary-inner">
+            <el-icon class="risk-icon"><Warning /></el-icon>
+            <span class="risk-text">风险处置</span>
+            <span class="risk-detail">
+              {{ riskSummary.pending }}待处理 / {{ riskSummary.total }}总数
+            </span>
+          </div>
+        </el-badge>
       </div>
     </div>
 
@@ -28,6 +41,11 @@
             <div class="location-info">
               <h4 class="location-name">{{ group.location }}</h4>
               <span class="record-count">{{ group.records.length }}条记录</span>
+            </div>
+            <div v-if="getLocationRiskLevel(group.latest)" class="location-risk-tag">
+              <el-tag :type="getLocationRiskTagType(group.latest)" size="small" effect="dark">
+                {{ getLocationRiskLevel(group.latest) }}
+              </el-tag>
             </div>
           </div>
 
@@ -120,6 +138,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { Warning } from '@element-plus/icons-vue'
 import { TEA_STORAGE_CONDITIONS } from '../utils/constants'
 
 const props = defineProps({
@@ -134,11 +153,23 @@ const props = defineProps({
   stockUnit: {
     type: String,
     default: '克'
+  },
+  riskActions: {
+    type: Array,
+    default: () => []
   }
 })
 
+defineEmits(['view-risk'])
+
 const suitableRange = computed(() => {
   return TEA_STORAGE_CONDITIONS[props.teaCategory] || TEA_STORAGE_CONDITIONS['默认']
+})
+
+const riskSummary = computed(() => {
+  const total = props.riskActions.length
+  const pending = props.riskActions.filter(a => a.resultStatus !== '已完成').length
+  return { total, pending }
 })
 
 const groupedRecords = computed(() => {
@@ -202,6 +233,28 @@ function getSealStatus(condition) {
   return 'status-danger'
 }
 
+function getLocationRiskLevel(latest) {
+  if (!latest) return null
+  const tempStatus = getTemperatureStatus(latest.temperature)
+  const humidityStatus = getHumidityStatus(latest.humidity)
+  const sealStatus = getSealStatus(latest.sealCondition)
+  
+  if (tempStatus === 'status-danger' || humidityStatus === 'status-danger' || sealStatus === 'status-danger') {
+    return '高风险'
+  }
+  if (tempStatus === 'status-warning' || humidityStatus === 'status-warning' || sealStatus === 'status-warning') {
+    return '中风险'
+  }
+  return null
+}
+
+function getLocationRiskTagType(latest) {
+  const level = getLocationRiskLevel(latest)
+  if (level === '高风险') return 'danger'
+  if (level === '中风险') return 'warning'
+  return 'success'
+}
+
 function getStatusText(status) {
   const map = {
     'status-good': '良好',
@@ -247,6 +300,13 @@ function getHumidityBarHeight(humidity) {
   gap: 12px;
 }
 
+.panel-header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
 .panel-title {
   font-size: 18px;
   font-weight: 600;
@@ -285,6 +345,50 @@ function getHumidityBarHeight(humidity) {
   background: #e63946;
 }
 
+.risk-summary {
+  cursor: pointer;
+}
+
+.risk-summary-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #fff0f0, #ffe0e0);
+  border: 1px solid #fbc4c4;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.risk-summary-inner:hover {
+  box-shadow: 0 2px 8px rgba(230, 57, 70, 0.15);
+  transform: translateY(-1px);
+}
+
+.risk-icon {
+  font-size: 18px;
+  color: #e63946;
+}
+
+.risk-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c92a2a;
+}
+
+.risk-detail {
+  font-size: 12px;
+  color: #e63946;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.risk-badge :deep(.el-badge__content) {
+  top: 8px;
+  right: 8px;
+}
+
 .location-card {
   margin-bottom: 16px;
 }
@@ -320,6 +424,10 @@ function getHumidityBarHeight(humidity) {
 .record-count {
   font-size: 12px;
   color: #6c757d;
+}
+
+.location-risk-tag {
+  flex-shrink: 0;
 }
 
 .latest-record {
