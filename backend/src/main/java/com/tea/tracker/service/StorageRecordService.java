@@ -1,5 +1,6 @@
 package com.tea.tracker.service;
 
+import com.tea.tracker.dto.StockReplayResult;
 import com.tea.tracker.dto.StorageRecordRequest;
 import com.tea.tracker.dto.StorageRecordResponse;
 import com.tea.tracker.entity.StorageRecord;
@@ -30,32 +31,20 @@ public class StorageRecordService {
         Tea tea = teaRepository.findById(teaId)
                 .orElseThrow(() -> new EntityNotFoundException("茶叶档案不存在: " + teaId));
 
-        BigDecimal stockChange = request.getStockChange() != null ? request.getStockChange() : BigDecimal.ZERO;
-        BigDecimal currentTeaStock = tea.getCurrentStock() != null ? tea.getCurrentStock() : BigDecimal.ZERO;
-        BigDecimal newStock = currentTeaStock.add(stockChange);
-
-        if (newStock.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException(
-                    String.format("库存变动会导致负库存！当前库存: %s%s, 变动: %s%s, 变动后: %s%s",
-                            currentTeaStock, tea.getStockUnit() != null ? tea.getStockUnit() : "",
-                            stockChange, tea.getStockUnit() != null ? tea.getStockUnit() : "",
-                            newStock, tea.getStockUnit() != null ? tea.getStockUnit() : "")
-            );
-        }
-
         StorageRecord record = new StorageRecord();
         mapRequestToEntity(request, record);
         record.setTea(tea);
         record.setRecordDate(LocalDateTime.now());
-        record.setCurrentStock(newStock);
-
-        tea.setCurrentStock(newStock);
-        teaRepository.save(tea);
+        record.setCurrentStock(BigDecimal.ZERO);
 
         StorageRecord saved = storageRecordRepository.save(record);
-        log.info("Created storage record for tea {} (id={}), stock: {} -> {}",
-                tea.getName(), saved.getId(), currentTeaStock, newStock);
-        return toResponse(saved);
+
+        replayStockInternal(teaId);
+
+        StorageRecord finalRecord = storageRecordRepository.findById(saved.getId())
+                .orElseThrow(() -> new EntityNotFoundException("仓储记录不存在: " + saved.getId()));
+        log.info("Created storage record for tea {} (id={})", tea.getName(), saved.getId());
+        return toResponse(finalRecord);
     }
 
     @Transactional
@@ -67,50 +56,15 @@ public class StorageRecordService {
             throw new IllegalArgumentException("仓储记录不属于当前茶叶");
         }
 
-        Tea tea = record.getTea();
-        BigDecimal newChange = request.getStockChange() != null ? request.getStockChange() : BigDecimal.ZERO;
-
-        List<StorageRecord> allRecords = storageRecordRepository.findByTeaIdOrderByRecordDateAsc(teaId);
-        int recordIndex = -1;
-        for (int i = 0; i < allRecords.size(); i++) {
-            if (allRecords.get(i).getId().equals(id)) {
-                recordIndex = i;
-                break;
-            }
-        }
-
-        BigDecimal baseStock = BigDecimal.ZERO;
-        if (recordIndex > 0) {
-            baseStock = allRecords.get(recordIndex - 1).getCurrentStock() != null 
-                ? allRecords.get(recordIndex - 1).getCurrentStock() 
-                : BigDecimal.ZERO;
-        }
-
-        BigDecimal newStock = baseStock.add(newChange);
-        if (newStock.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException(
-                    String.format("库存变动会导致负库存！记录前库存: %s%s, 新变动: %s%s, 变动后: %s%s",
-                            baseStock, tea.getStockUnit() != null ? tea.getStockUnit() : "",
-                            newChange, tea.getStockUnit() != null ? tea.getStockUnit() : "",
-                            newStock, tea.getStockUnit() != null ? tea.getStockUnit() : "")
-            );
-        }
-
         mapRequestToEntity(request, record);
-        record.setCurrentStock(newStock);
-        StorageRecord updated = storageRecordRepository.save(record);
+        storageRecordRepository.save(record);
 
-        updateSubsequentRecords(allRecords, recordIndex, newStock);
+        replayStockInternal(teaId);
 
-        BigDecimal finalStock = allRecords.get(allRecords.size() - 1).getCurrentStock() != null 
-            ? allRecords.get(allRecords.size() - 1).getCurrentStock() 
-            : BigDecimal.ZERO;
-        tea.setCurrentStock(finalStock);
-        teaRepository.save(tea);
-
-        log.info("Updated storage record id={} for tea {}, stock adjusted to {}",
-                id, tea.getName(), finalStock);
-        return toResponse(updated);
+        StorageRecord finalRecord = storageRecordRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("仓储记录不存在: " + id));
+        log.info("Updated storage record id={} for tea {}", id, record.getTea().getName());
+        return toResponse(finalRecord);
     }
 
     @Transactional
@@ -122,62 +76,64 @@ public class StorageRecordService {
             throw new IllegalArgumentException("仓储记录不属于当前茶叶");
         }
 
-        Tea tea = record.getTea();
-        List<StorageRecord> allRecords = storageRecordRepository.findByTeaIdOrderByRecordDateAsc(teaId);
-        int recordIndex = -1;
-        for (int i = 0; i < allRecords.size(); i++) {
-            if (allRecords.get(i).getId().equals(id)) {
-                recordIndex = i;
-                break;
-            }
-        }
-
-        BigDecimal baseStock = BigDecimal.ZERO;
-        if (recordIndex > 0) {
-            baseStock = allRecords.get(recordIndex - 1).getCurrentStock() != null 
-                ? allRecords.get(recordIndex - 1).getCurrentStock() 
-                : BigDecimal.ZERO;
-        }
-
-        if (recordIndex < allRecords.size() - 1) {
-            updateSubsequentRecords(allRecords, recordIndex - 1, baseStock);
-        }
-
-        BigDecimal finalStock = baseStock;
-        if (allRecords.size() > 1) {
-            int lastIndex = recordIndex == allRecords.size() - 1 ? recordIndex - 1 : allRecords.size() - 1;
-            if (lastIndex >= 0) {
-                StorageRecord lastRecord = allRecords.get(lastIndex);
-                finalStock = lastRecord.getCurrentStock() != null 
-                    ? lastRecord.getCurrentStock() 
-                    : BigDecimal.ZERO;
-            }
-        }
-
-        if (finalStock.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException(
-                    String.format("删除该记录会导致负库存！删除后库存: %s%s",
-                            finalStock, tea.getStockUnit() != null ? tea.getStockUnit() : "")
-            );
-        }
-
-        tea.setCurrentStock(finalStock);
-        teaRepository.save(tea);
-
         storageRecordRepository.delete(record);
-        log.info("Deleted storage record id={} for tea {}, stock adjusted to {}",
-                id, tea.getName(), finalStock);
+
+        replayStockInternal(teaId);
+
+        log.info("Deleted storage record id={} for tea {}", id, record.getTea().getName());
     }
 
-    private void updateSubsequentRecords(List<StorageRecord> allRecords, int fromIndex, BigDecimal startStock) {
-        BigDecimal currentStock = startStock;
-        for (int i = fromIndex + 1; i < allRecords.size(); i++) {
-            StorageRecord r = allRecords.get(i);
+    @Transactional
+    public StockReplayResult replayStock(Long teaId) {
+        Tea tea = teaRepository.findById(teaId)
+                .orElseThrow(() -> new EntityNotFoundException("茶叶档案不存在: " + teaId));
+
+        BigDecimal previousStock = tea.getCurrentStock() != null ? tea.getCurrentStock() : BigDecimal.ZERO;
+
+        List<StorageRecord> recalculated = replayStockInternal(teaId);
+
+        tea = teaRepository.findById(teaId).orElseThrow();
+        BigDecimal recalculatedStock = tea.getCurrentStock() != null ? tea.getCurrentStock() : BigDecimal.ZERO;
+
+        StockReplayResult result = new StockReplayResult();
+        result.setTeaId(teaId);
+        result.setTeaName(tea.getName());
+        result.setPreviousStock(previousStock);
+        result.setRecalculatedStock(recalculatedStock);
+        result.setTotalRecordsReplayed(recalculated.size());
+        result.setReplayedRecords(recalculated.stream().map(this::toResponse).collect(Collectors.toList()));
+
+        log.info("Replayed stock for tea {} (id={}): {} -> {} ({} records)",
+                tea.getName(), teaId, previousStock, recalculatedStock, recalculated.size());
+        return result;
+    }
+
+    private List<StorageRecord> replayStockInternal(Long teaId) {
+        Tea tea = teaRepository.findById(teaId)
+                .orElseThrow(() -> new EntityNotFoundException("茶叶档案不存在: " + teaId));
+
+        List<StorageRecord> allRecords = storageRecordRepository.findByTeaIdOrderByRecordDateAsc(teaId);
+
+        BigDecimal runningStock = BigDecimal.ZERO;
+        for (StorageRecord r : allRecords) {
             BigDecimal change = r.getStockChange() != null ? r.getStockChange() : BigDecimal.ZERO;
-            currentStock = currentStock.add(change);
-            r.setCurrentStock(currentStock);
+            runningStock = runningStock.add(change);
+            if (runningStock.compareTo(BigDecimal.ZERO) < 0) {
+                throw new IllegalArgumentException(
+                        String.format("库存回放发现负库存！记录id=%d, 变动: %s%s, 累计库存: %s%s",
+                                r.getId(),
+                                change, tea.getStockUnit() != null ? tea.getStockUnit() : "",
+                                runningStock, tea.getStockUnit() != null ? tea.getStockUnit() : "")
+                );
+            }
+            r.setCurrentStock(runningStock);
             storageRecordRepository.save(r);
         }
+
+        tea.setCurrentStock(runningStock);
+        teaRepository.save(tea);
+
+        return allRecords;
     }
 
     @Transactional(readOnly = true)

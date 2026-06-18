@@ -1,6 +1,7 @@
 package com.tea.tracker.controller;
 
 import com.tea.tracker.dto.ApiResponse;
+import com.tea.tracker.dto.StockReplayResult;
 import com.tea.tracker.dto.StorageRecordRequest;
 import com.tea.tracker.dto.StorageRecordResponse;
 import com.tea.tracker.service.StorageRecordService;
@@ -41,5 +42,10 @@ public class StorageRecordController {
     @GetMapping
     public ApiResponse<List<StorageRecordResponse>> getStorageRecordsByTeaId(@PathVariable Long teaId) {
         return ApiResponse.success(storageRecordService.getStorageRecordsByTeaId(teaId));
+    }
+
+    @PostMapping("/replay")
+    public ApiResponse<StockReplayResult> replayStock(@PathVariable Long teaId) {
+        return ApiResponse.success(storageRecordService.replayStock(teaId));
     }
 }
