@@ -678,6 +678,12 @@
               maxlength="200"
               show-word-limit
             />
+            <TastingVocabularySelector
+              v-if="tea.teaCategory"
+              v-model="tastingForm[cat.key + 'Desc']"
+              :vocabulary-type="cat.key"
+              :tea-category="tea.teaCategory"
+            />
           </el-form-item>
         </div>
 
@@ -774,6 +780,7 @@ import StorageEnvironmentPanel from '../components/StorageEnvironmentPanel.vue'
 import TastingRadarChart from '../components/TastingRadarChart.vue'
 import StockTrendMini from '../components/StockTrendMini.vue'
 import AgingTimeline from '../components/AgingTimeline.vue'
+import TastingVocabularySelector from '../components/TastingVocabularySelector.vue'
 import { useBrewingCurveStore } from '../store/brewingCurve'
 
 const route = useRoute()

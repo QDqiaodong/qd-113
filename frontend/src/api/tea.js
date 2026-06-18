@@ -131,3 +131,27 @@ export function getLatestSuitability(teaId) {
 export function deleteSuitability(teaId, id) {
   return request.delete(`/teas/${teaId}/suitability/${id}`)
 }
+
+export function getTastingVocabularies(params) {
+  return request.get('/tasting-vocabularies', { params })
+}
+
+export function getTastingVocabularyById(id) {
+  return request.get(`/tasting-vocabularies/${id}`)
+}
+
+export function createTastingVocabulary(data) {
+  return request.post('/tasting-vocabularies', data)
+}
+
+export function updateTastingVocabulary(id, data) {
+  return request.put(`/tasting-vocabularies/${id}`, data)
+}
+
+export function deleteTastingVocabulary(id) {
+  return request.delete(`/tasting-vocabularies/${id}`)
+}
+
+export function getVocabulariesByTypeAndCategory(vocabularyType, teaCategory) {
+  return request.get('/tasting-vocabularies', { params: { vocabularyType, teaCategory } })
+}
