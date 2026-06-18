@@ -3,6 +3,8 @@ package com.tea.tracker.controller;
 import com.tea.tracker.dto.ApiResponse;
 import com.tea.tracker.dto.BrewingParamRequest;
 import com.tea.tracker.dto.BrewingParamResponse;
+import com.tea.tracker.dto.BrewingParamSyncRequest;
+import com.tea.tracker.dto.ParamSyncRecordResponse;
 import com.tea.tracker.service.BrewingParamService;
 import com.tea.tracker.service.TeaTemplateCacheService;
 import jakarta.validation.Valid;
@@ -57,5 +59,30 @@ public class BrewingParamController {
             @PathVariable Long teaId,
             @RequestParam String category) {
         return ApiResponse.success(templateCacheService.getBrewingTemplate(category));
+    }
+
+    @GetMapping("/sync/preview")
+    public ApiResponse<List<ParamSyncRecordResponse.FieldDifference>> previewSync(
+            @PathVariable Long teaId,
+            @RequestParam Long sourceParamId,
+            @RequestParam Long targetTeaId) {
+        return ApiResponse.success(brewingParamService.previewSync(sourceParamId, targetTeaId));
+    }
+
+    @PostMapping("/sync")
+    public ApiResponse<ParamSyncRecordResponse> syncBrewingParam(
+            @PathVariable Long teaId,
+            @RequestBody BrewingParamSyncRequest request) {
+        return ApiResponse.success(brewingParamService.syncBrewingParam(request));
+    }
+
+    @GetMapping("/sync-records")
+    public ApiResponse<List<ParamSyncRecordResponse>> getSyncRecords(
+            @PathVariable Long teaId,
+            @RequestParam(required = false, defaultValue = "target") String type) {
+        if ("source".equals(type)) {
+            return ApiResponse.success(brewingParamService.getSyncRecordsBySourceTeaId(teaId));
+        }
+        return ApiResponse.success(brewingParamService.getSyncRecordsByTargetTeaId(teaId));
     }
 }

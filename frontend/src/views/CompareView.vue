@@ -49,7 +49,12 @@
       <el-row :gutter="16">
         <el-col :xs="24" :lg="12">
           <el-card class="compare-card">
-            <h3 class="section-title">冲泡参数对比</h3>
+            <div class="card-header">
+              <h3 class="section-title">冲泡参数对比</h3>
+              <el-button type="primary" size="small" :disabled="compareData.length < 2" @click="openSyncDialog('source', compareData[0]?.id)">
+                同步参数
+              </el-button>
+            </div>
             <div class="compare-chart">
               <div class="chart-row" v-for="metric in brewingMetrics" :key="metric.key">
                 <div class="chart-label">{{ metric.label }}</div>
@@ -120,12 +125,90 @@
     </template>
 
     <el-empty v-else-if="!loading" description="请选择至少2款茶叶进行对比" />
+
+    <el-dialog v-model="syncDialogVisible" title="同步冲泡参数" width="600px" :close-on-click-modal="false">
+      <el-form label-width="100px" class="sync-form">
+        <el-form-item label="来源茶叶">
+          <el-select v-model="sourceTeaId" placeholder="选择来源茶叶" style="width: 100%" @change="onSourceTeaChange">
+            <el-option v-for="tea in compareData" :key="tea.id" :label="tea.name + ' (' + tea.teaCategory + ')'" :value="tea.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="来源参数">
+          <el-select v-model="sourceParamId" placeholder="选择要同步的参数" style="width: 100%" :disabled="!sourceTeaId" @change="loadSyncPreview">
+            <el-option v-for="p in sourceParams" :key="p.id" :label="(p.paramName || '未命名') + (p.isDefault ? ' [默认]' : '')" :value="p.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="目标茶叶">
+          <el-select v-model="targetTeaId" placeholder="选择目标茶叶（同茶类）" style="width: 100%" @change="loadSyncPreview">
+            <el-option 
+              v-for="tea in sameCategoryTeas.length ? sameCategoryTeas : compareData.filter(t => t.id !== sourceTeaId)" 
+              :key="tea.id" 
+              :label="tea.name + ' (' + tea.teaCategory + ')'" 
+              :value="tea.id"
+              :disabled="sourceTeaId && tea.teaCategory !== sourceTea?.teaCategory"
+            />
+          </el-select>
+          <div v-if="sourceTeaId && targetTeaId && sourceTea?.teaCategory !== targetTea?.teaCategory" class="form-tip error">
+            只能同步同茶类的冲泡参数
+          </div>
+          <div v-else-if="sourceTeaId && sameCategoryTeas.length === 0" class="form-tip">
+            当前对比中没有同茶类的其他茶叶
+          </div>
+        </el-form-item>
+        <el-form-item label="参数名称">
+          <el-input v-model="targetParamName" placeholder="留空则使用来源名称 + (同步)" />
+        </el-form-item>
+        <el-form-item label="设为默认">
+          <el-switch v-model="setAsDefault" />
+        </el-form-item>
+      </el-form>
+
+      <div v-if="syncPreviewLoading" class="preview-loading">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span>加载差异预览...</span>
+      </div>
+
+      <div v-else-if="syncPreview.length > 0" class="diff-preview">
+        <div class="diff-title">字段差异预览（与目标默认参数对比）</div>
+        <el-table :data="syncPreview" size="small" border stripe>
+          <el-table-column prop="fieldLabel" label="字段" width="120" />
+          <el-table-column label="来源值" width="180">
+            <template #default="{ row }">
+              <span class="diff-source">{{ formatValue(row.sourceValue) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="目标原值" width="180">
+            <template #default="{ row }">
+              <span class="diff-target">{{ formatValue(row.targetValue) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作">
+            <template #default="{ row }">
+              <el-tag type="success" size="small">将覆盖</el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <div v-else-if="sourceParamId && targetTeaId && !syncPreviewLoading" class="diff-empty">
+        <el-empty description="无差异，参数完全相同" :image-size="80" />
+      </div>
+
+      <template #footer>
+        <el-button @click="syncDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="syncLoading" :disabled="!canSync" @click="confirmSync">
+          确认同步
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getTeaList, getTeaById, getBrewingParams, getTastingNotes } from '../api/tea'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Loading } from '@element-plus/icons-vue'
+import { getTeaList, getTeaById, getBrewingParams, getTastingNotes, previewBrewingParamSync, syncBrewingParam } from '../api/tea'
 
 const allTeas = ref([])
 const selectedTeaIds = ref([])
@@ -133,6 +216,17 @@ const loading = ref(false)
 const compareData = ref([])
 const brewingDataMap = ref({})
 const tastingDataMap = ref({})
+
+const syncDialogVisible = ref(false)
+const syncLoading = ref(false)
+const syncPreviewLoading = ref(false)
+const sourceTeaId = ref(null)
+const targetTeaId = ref(null)
+const sourceParamId = ref(null)
+const targetParamName = ref('')
+const setAsDefault = ref(true)
+const syncPreview = ref([])
+const syncType = ref('')
 
 const COLORS = ['#2d6a4f', '#e76f51', '#264653', '#e9c46a']
 
@@ -158,6 +252,48 @@ const hasTastingData = computed(() => {
     return notes && notes.length > 0
   })
 })
+
+const sourceTea = computed(() => compareData.value.find(t => t.id === sourceTea.value))
+const targetTea = computed(() => compareData.value.find(t => t.id === targetTea.value))
+
+const sameCategoryTeas = computed(() => {
+  if (!sourceTea.value) return []
+  return compareData.value.filter(t => t.id !== sourceTea.value.id && t.teaCategory === sourceTea.value.teaCategory)
+})
+
+const sourceParams = computed(() => {
+  const params = brewingDataMap.value[sourceTea.value] || []
+  return params
+})
+
+const defaultSourceParam = computed(() => {
+  const params = sourceParams.value
+  if (!params || params.length === 0) return null
+  const def = params.find(p => p.isDefault)
+  return def || params[0]
+})
+
+const canSync = computed(() => {
+  return sourceParamId.value 
+    && targetTeaId.value 
+    && sourceTea.value 
+    && targetTea.value 
+    && sourceTea.value.teaCategory === targetTea.value.teaCategory
+})
+
+function onSourceTeaChange() {
+  sourceParamId.value = null
+  syncPreview.value = []
+  if (defaultSourceParam.value) {
+    sourceParamId.value = defaultSourceParam.value.id
+    loadSyncPreview()
+  }
+}
+
+function formatValue(val) {
+  if (val === null || val === undefined || val === '') return '-'
+  return String(val)
+}
 
 const dimensionCards = computed(() => {
   return [
@@ -321,6 +457,73 @@ async function loadCompareData() {
     compareData.value = results
   } finally {
     loading.value = false
+  }
+}
+
+function openSyncDialog(type, teaId) {
+  syncType.value = type
+  if (type === 'source') {
+    sourceTeaId.value = teaId
+    targetTeaId.value = null
+  } else {
+    targetTeaId.value = teaId
+    sourceTeaId.value = null
+  }
+  sourceParamId.value = null
+  targetParamName.value = ''
+  setAsDefault.value = true
+  syncPreview.value = []
+  syncDialogVisible.value = true
+}
+
+async function loadSyncPreview() {
+  if (!sourceParamId.value || !targetTeaId.value) {
+    syncPreview.value = []
+    return
+  }
+  syncPreviewLoading.value = true
+  try {
+    const res = await previewBrewingParamSync(sourceTeaId.value, sourceParamId.value, targetTeaId.value)
+    syncPreview.value = res.data || []
+  } catch (e) {
+    syncPreview.value = []
+  } finally {
+    syncPreviewLoading.value = false
+  }
+}
+
+async function confirmSync() {
+  if (!sourceParamId.value || !targetTeaId.value) {
+    ElMessage.warning('请选择来源参数和目标茶叶')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定要将「${sourceTea.value?.name}」的冲泡参数同步到「${targetTea.value?.name}」吗？`,
+      '确认同步',
+      { type: 'warning' }
+    )
+  } catch {
+    return
+  }
+
+  syncLoading.value = true
+  try {
+    const res = await syncBrewingParam(sourceTeaId.value, {
+      sourceTeaId: sourceTeaId.value,
+      sourceParamId: sourceParamId.value,
+      targetTeaId: targetTeaId.value,
+      targetParamName: targetParamName.value || undefined,
+      setAsDefault: setAsDefault.value
+    })
+    ElMessage.success('参数同步成功')
+    syncDialogVisible.value = false
+    const brewingRes = await getBrewingParams(targetTeaId.value)
+    brewingDataMap.value[targetTeaId.value] = brewingRes.data || []
+  } catch (e) {
+    ElMessage.error(e.message || '同步失败')
+  } finally {
+    syncLoading.value = false
   }
 }
 
@@ -579,5 +782,67 @@ onMounted(async () => {
 .infusion-step-label {
   font-size: 11px;
   color: #6c757d;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.card-header .section-title {
+  margin: 0;
+}
+
+.sync-form {
+  margin-bottom: 20px;
+}
+
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+.form-tip.error {
+  color: #f56c6c;
+}
+
+.preview-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 0;
+  gap: 8px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.diff-preview {
+  margin-top: 16px;
+  border-top: 1px solid #eee;
+  padding-top: 16px;
+}
+
+.diff-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 12px;
+}
+
+.diff-source {
+  color: #67c23a;
+  font-weight: 500;
+}
+
+.diff-target {
+  color: #909399;
+  text-decoration: line-through;
+}
+
+.diff-empty {
+  padding: 20px 0;
 }
 </style>

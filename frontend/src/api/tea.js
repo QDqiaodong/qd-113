@@ -155,3 +155,15 @@ export function deleteTastingVocabulary(id) {
 export function getVocabulariesByTypeAndCategory(vocabularyType, teaCategory) {
   return request.get('/tasting-vocabularies', { params: { vocabularyType, teaCategory } })
 }
+
+export function previewBrewingParamSync(teaId, sourceParamId, targetTeaId) {
+  return request.get(`/teas/${teaId}/brewing-params/sync/preview`, { params: { sourceParamId, targetTeaId } })
+}
+
+export function syncBrewingParam(teaId, data) {
+  return request.post(`/teas/${teaId}/brewing-params/sync`, data)
+}
+
+export function getBrewingParamSyncRecords(teaId, type = 'target') {
+  return request.get(`/teas/${teaId}/brewing-params/sync-records`, { params: { type } })
+}

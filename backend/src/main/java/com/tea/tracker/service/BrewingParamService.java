@@ -1,12 +1,19 @@
 package com.tea.tracker.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tea.tracker.dto.BrewingParamRequest;
 import com.tea.tracker.dto.BrewingParamResponse;
+import com.tea.tracker.dto.BrewingParamSyncRequest;
 import com.tea.tracker.dto.FieldValidationError;
+import com.tea.tracker.dto.ParamSyncRecordResponse;
 import com.tea.tracker.entity.BrewingParam;
+import com.tea.tracker.entity.ParamSyncRecord;
 import com.tea.tracker.entity.Tea;
 import com.tea.tracker.exception.BrewingParamValidationException;
 import com.tea.tracker.repository.BrewingParamRepository;
+import com.tea.tracker.repository.ParamSyncRecordRepository;
 import com.tea.tracker.repository.TeaRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -28,8 +35,28 @@ public class BrewingParamService {
     private final BrewingParamRepository brewingParamRepository;
     private final TeaRepository teaRepository;
     private final TeaTemplateCacheService teaTemplateCacheService;
+    private final ParamSyncRecordRepository paramSyncRecordRepository;
+    private final ObjectMapper objectMapper;
 
     private final ConcurrentHashMap<Long, ReentrantLock> teaLocks = new ConcurrentHashMap<>();
+
+    private static final Map<String, String> FIELD_LABEL_MAP = new LinkedHashMap<>();
+
+    static {
+        FIELD_LABEL_MAP.put("paramName", "参数名称");
+        FIELD_LABEL_MAP.put("brewingMethod", "冲泡方式");
+        FIELD_LABEL_MAP.put("waterTemperature", "水温");
+        FIELD_LABEL_MAP.put("teaAmount", "投茶量");
+        FIELD_LABEL_MAP.put("teaRatio", "茶水比");
+        FIELD_LABEL_MAP.put("waterAmount", "注水量");
+        FIELD_LABEL_MAP.put("firstInfusionTime", "首泡时长");
+        FIELD_LABEL_MAP.put("secondInfusionTime", "二泡时长");
+        FIELD_LABEL_MAP.put("thirdInfusionTime", "三泡时长");
+        FIELD_LABEL_MAP.put("subsequentInfusionTime", "后续泡时长");
+        FIELD_LABEL_MAP.put("totalInfusions", "总泡数");
+        FIELD_LABEL_MAP.put("waterQuality", "水质");
+        FIELD_LABEL_MAP.put("notes", "备注");
+    }
 
     private ReentrantLock getTeaLock(Long teaId) {
         return teaLocks.computeIfAbsent(teaId, k -> new ReentrantLock());
@@ -381,5 +408,253 @@ public class BrewingParamService {
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<ParamSyncRecordResponse.FieldDifference> previewSync(Long sourceParamId, Long targetTeaId) {
+        BrewingParam sourceParam = brewingParamRepository.findById(sourceParamId)
+                .orElseThrow(() -> new EntityNotFoundException("来源冲泡参数不存在: " + sourceParamId));
+
+        Tea sourceTea = sourceParam.getTea();
+        Tea targetTea = teaRepository.findById(targetTeaId)
+                .orElseThrow(() -> new EntityNotFoundException("目标茶叶不存在: " + targetTeaId));
+
+        if (!sourceTea.getTeaCategory().equals(targetTea.getTeaCategory())) {
+            throw new IllegalArgumentException("只能同步同茶类的冲泡参数（来源：" 
+                    + sourceTea.getTeaCategory() + "，目标：" + targetTea.getTeaCategory() + "）");
+        }
+
+        List<BrewingParam> targetParams = brewingParamRepository.findByTeaIdOrderByCreatedAtDesc(targetTeaId);
+        BrewingParam targetDefault = targetParams.stream()
+                .filter(p -> Boolean.TRUE.equals(p.getIsDefault()))
+                .findFirst()
+                .orElse(null);
+
+        return calculateFieldDifferences(sourceParam, targetDefault);
+    }
+
+    @Transactional
+    public ParamSyncRecordResponse syncBrewingParam(BrewingParamSyncRequest request) {
+        BrewingParam sourceParam = brewingParamRepository.findById(request.getSourceParamId())
+                .orElseThrow(() -> new EntityNotFoundException("来源冲泡参数不存在: " + request.getSourceParamId()));
+
+        Tea sourceTea = sourceParam.getTea();
+        Tea targetTea = teaRepository.findById(request.getTargetTeaId())
+                .orElseThrow(() -> new EntityNotFoundException("目标茶叶不存在: " + request.getTargetTeaId()));
+
+        if (!sourceTea.getTeaCategory().equals(targetTea.getTeaCategory())) {
+            throw new IllegalArgumentException("只能同步同茶类的冲泡参数");
+        }
+
+        ReentrantLock lock = getTeaLock(request.getTargetTeaId());
+        lock.lock();
+        try {
+            List<BrewingParam> targetParams = brewingParamRepository.findByTeaIdOrderByCreatedAtDesc(request.getTargetTeaId());
+            BrewingParam targetDefault = targetParams.stream()
+                    .filter(p -> Boolean.TRUE.equals(p.getIsDefault()))
+                    .findFirst()
+                    .orElse(null);
+
+            List<ParamSyncRecordResponse.FieldDifference> differences = 
+                    calculateFieldDifferences(sourceParam, targetDefault);
+
+            BrewingParam newParam = new BrewingParam();
+            newParam.setTea(targetTea);
+            copyParamFields(sourceParam, newParam, request.getFieldsToSync());
+
+            String paramName = request.getTargetParamName();
+            if (paramName == null || paramName.isBlank()) {
+                paramName = sourceParam.getParamName() != null ? sourceParam.getParamName() + " (同步)" : "同步参数";
+            }
+            newParam.setParamName(paramName);
+
+            if (Boolean.TRUE.equals(request.getSetAsDefault())) {
+                brewingParamRepository.clearDefaultByTeaId(request.getTargetTeaId());
+                newParam.setIsDefault(true);
+            } else {
+                newParam.setIsDefault(false);
+            }
+
+            validateBrewingParams(targetTea.getTeaCategory(), convertToRequest(newParam));
+
+            BrewingParam saved = brewingParamRepository.save(newParam);
+            log.info("Synced brewing param from tea {} (paramId={}) to tea {} (newParamId={})",
+                    sourceTea.getName(), sourceParam.getId(), targetTea.getName(), saved.getId());
+
+            ParamSyncRecord syncRecord = new ParamSyncRecord();
+            syncRecord.setSourceTeaId(sourceTea.getId());
+            syncRecord.setSourceTeaName(sourceTea.getName());
+            syncRecord.setSourceParamId(sourceParam.getId());
+            syncRecord.setSourceParamName(sourceParam.getParamName());
+            syncRecord.setTargetTeaId(targetTea.getId());
+            syncRecord.setTargetTeaName(targetTea.getName());
+            syncRecord.setTargetParamId(saved.getId());
+            syncRecord.setTargetParamName(saved.getParamName());
+            syncRecord.setTeaCategory(sourceTea.getTeaCategory());
+            syncRecord.setSyncType("DEFAULT");
+            syncRecord.setSyncedAt(java.time.LocalDateTime.now());
+            syncRecord.setFieldDifferences(serializeFieldDifferences(differences));
+
+            paramSyncRecordRepository.save(syncRecord);
+
+            return toSyncRecordResponse(syncRecord);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<ParamSyncRecordResponse> getSyncRecordsByTargetTeaId(Long targetTeaId) {
+        return paramSyncRecordRepository.findByTargetTeaIdOrderBySyncedAtDesc(targetTeaId)
+                .stream()
+                .map(this::toSyncRecordResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ParamSyncRecordResponse> getSyncRecordsBySourceTeaId(Long sourceTeaId) {
+        return paramSyncRecordRepository.findBySourceTeaIdOrderBySyncedAtDesc(sourceTeaId)
+                .stream()
+                .map(this::toSyncRecordResponse)
+                .collect(Collectors.toList());
+    }
+
+    private List<ParamSyncRecordResponse.FieldDifference> calculateFieldDifferences(
+            BrewingParam source, BrewingParam target) {
+        List<ParamSyncRecordResponse.FieldDifference> differences = new ArrayList<>();
+
+        for (Map.Entry<String, String> entry : FIELD_LABEL_MAP.entrySet()) {
+            String fieldName = entry.getKey();
+            String fieldLabel = entry.getValue();
+
+            Object sourceValue = getFieldValue(source, fieldName);
+            Object targetValue = target != null ? getFieldValue(target, fieldName) : null;
+
+            boolean differs = (sourceValue == null && targetValue != null)
+                    || (sourceValue != null && !sourceValue.equals(targetValue));
+
+            if (differs) {
+                ParamSyncRecordResponse.FieldDifference diff = new ParamSyncRecordResponse.FieldDifference();
+                diff.setFieldName(fieldName);
+                diff.setFieldLabel(fieldLabel);
+                diff.setSourceValue(sourceValue);
+                diff.setTargetValue(targetValue);
+                differences.add(diff);
+            }
+        }
+
+        return differences;
+    }
+
+    private Object getFieldValue(BrewingParam param, String fieldName) {
+        return switch (fieldName) {
+            case "paramName" -> param.getParamName();
+            case "brewingMethod" -> param.getBrewingMethod();
+            case "waterTemperature" -> param.getWaterTemperature();
+            case "teaAmount" -> param.getTeaAmount();
+            case "teaRatio" -> param.getTeaRatio();
+            case "waterAmount" -> param.getWaterAmount();
+            case "firstInfusionTime" -> param.getFirstInfusionTime();
+            case "secondInfusionTime" -> param.getSecondInfusionTime();
+            case "thirdInfusionTime" -> param.getThirdInfusionTime();
+            case "subsequentInfusionTime" -> param.getSubsequentInfusionTime();
+            case "totalInfusions" -> param.getTotalInfusions();
+            case "waterQuality" -> param.getWaterQuality();
+            case "notes" -> param.getNotes();
+            default -> null;
+        };
+    }
+
+    private void copyParamFields(BrewingParam source, BrewingParam target, List<String> fieldsToSync) {
+        if (fieldsToSync == null || fieldsToSync.isEmpty()) {
+            target.setBrewingMethod(source.getBrewingMethod());
+            target.setWaterTemperature(source.getWaterTemperature());
+            target.setTeaAmount(source.getTeaAmount());
+            target.setTeaRatio(source.getTeaRatio());
+            target.setWaterAmount(source.getWaterAmount());
+            target.setFirstInfusionTime(source.getFirstInfusionTime());
+            target.setSecondInfusionTime(source.getSecondInfusionTime());
+            target.setThirdInfusionTime(source.getThirdInfusionTime());
+            target.setSubsequentInfusionTime(source.getSubsequentInfusionTime());
+            target.setTotalInfusions(source.getTotalInfusions());
+            target.setWaterQuality(source.getWaterQuality());
+            target.setNotes(source.getNotes());
+        } else {
+            for (String field : fieldsToSync) {
+                switch (field) {
+                    case "brewingMethod" -> target.setBrewingMethod(source.getBrewingMethod());
+                    case "waterTemperature" -> target.setWaterTemperature(source.getWaterTemperature());
+                    case "teaAmount" -> target.setTeaAmount(source.getTeaAmount());
+                    case "teaRatio" -> target.setTeaRatio(source.getTeaRatio());
+                    case "waterAmount" -> target.setWaterAmount(source.getWaterAmount());
+                    case "firstInfusionTime" -> target.setFirstInfusionTime(source.getFirstInfusionTime());
+                    case "secondInfusionTime" -> target.setSecondInfusionTime(source.getSecondInfusionTime());
+                    case "thirdInfusionTime" -> target.setThirdInfusionTime(source.getThirdInfusionTime());
+                    case "subsequentInfusionTime" -> target.setSubsequentInfusionTime(source.getSubsequentInfusionTime());
+                    case "totalInfusions" -> target.setTotalInfusions(source.getTotalInfusions());
+                    case "waterQuality" -> target.setWaterQuality(source.getWaterQuality());
+                    case "notes" -> target.setNotes(source.getNotes());
+                }
+            }
+        }
+    }
+
+    private BrewingParamRequest convertToRequest(BrewingParam param) {
+        BrewingParamRequest req = new BrewingParamRequest();
+        req.setParamName(param.getParamName());
+        req.setBrewingMethod(param.getBrewingMethod());
+        req.setWaterTemperature(param.getWaterTemperature());
+        req.setTeaAmount(param.getTeaAmount());
+        req.setTeaRatio(param.getTeaRatio());
+        req.setWaterAmount(param.getWaterAmount());
+        req.setFirstInfusionTime(param.getFirstInfusionTime());
+        req.setSecondInfusionTime(param.getSecondInfusionTime());
+        req.setThirdInfusionTime(param.getThirdInfusionTime());
+        req.setSubsequentInfusionTime(param.getSubsequentInfusionTime());
+        req.setTotalInfusions(param.getTotalInfusions());
+        req.setWaterQuality(param.getWaterQuality());
+        req.setNotes(param.getNotes());
+        req.setIsDefault(param.getIsDefault());
+        return req;
+    }
+
+    private String serializeFieldDifferences(List<ParamSyncRecordResponse.FieldDifference> differences) {
+        try {
+            return objectMapper.writeValueAsString(differences);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize field differences", e);
+            return "[]";
+        }
+    }
+
+    private List<ParamSyncRecordResponse.FieldDifference> deserializeFieldDifferences(String json) {
+        if (json == null || json.isBlank()) {
+            return new ArrayList<>();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<ParamSyncRecordResponse.FieldDifference>>() {});
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to deserialize field differences", e);
+            return new ArrayList<>();
+        }
+    }
+
+    private ParamSyncRecordResponse toSyncRecordResponse(ParamSyncRecord record) {
+        ParamSyncRecordResponse resp = new ParamSyncRecordResponse();
+        resp.setId(record.getId());
+        resp.setSourceTeaId(record.getSourceTeaId());
+        resp.setSourceTeaName(record.getSourceTeaName());
+        resp.setSourceParamId(record.getSourceParamId());
+        resp.setSourceParamName(record.getSourceParamName());
+        resp.setTargetTeaId(record.getTargetTeaId());
+        resp.setTargetTeaName(record.getTargetTeaName());
+        resp.setTargetParamId(record.getTargetParamId());
+        resp.setTargetParamName(record.getTargetParamName());
+        resp.setTeaCategory(record.getTeaCategory());
+        resp.setSyncType(record.getSyncType());
+        resp.setSyncedAt(record.getSyncedAt());
+        resp.setCreatedAt(record.getCreatedAt());
+        resp.setFieldDifferences(deserializeFieldDifferences(record.getFieldDifferences()));
+        return resp;
     }
 }
