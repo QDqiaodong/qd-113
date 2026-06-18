@@ -1212,7 +1212,7 @@ async function handleDeleteTea() {
 }
 
 function goToSuitabilityView() {
-  router.push(`/teas/${teaId}/suitability`)
+  router.push(`/tea/${teaId}/suitability`)
 }
 
 function openBrewingDialog(param = null) {

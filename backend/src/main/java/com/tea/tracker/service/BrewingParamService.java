@@ -206,19 +206,21 @@ public class BrewingParamService {
         brewingParamRepository.delete(param);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<BrewingParamResponse> getBrewingParamsByTeaId(Long teaId) {
         List<BrewingParam> params = brewingParamRepository.findByTeaIdOrderByCreatedAtDesc(teaId);
 
         Map<String, List<BrewingParam>> paramsByMethod = params.stream()
                 .collect(Collectors.groupingBy(p -> p.getBrewingMethod() != null ? p.getBrewingMethod() : ""));
 
+        List<BrewingParam> paramsToSave = new ArrayList<>();
+
         for (Map.Entry<String, List<BrewingParam>> entry : paramsByMethod.entrySet()) {
             List<BrewingParam> methodParams = entry.getValue();
             long defaultCount = methodParams.stream().filter(p -> Boolean.TRUE.equals(p.getIsDefault())).count();
             if (defaultCount > 1) {
                 String methodLabel = entry.getKey().isEmpty() ? "(未指定)" : entry.getKey();
-                log.warn("Tea {} has {} default brewing params for method '{}', will fix on next write operation",
+                log.warn("Tea {} has {} default brewing params for method '{}', fixing now",
                         teaId, defaultCount, methodLabel);
                 BrewingParam firstDefault = methodParams.stream()
                         .filter(p -> Boolean.TRUE.equals(p.getIsDefault()))
@@ -226,10 +228,19 @@ public class BrewingParamService {
                         .orElse(null);
                 if (firstDefault != null) {
                     for (BrewingParam p : methodParams) {
-                        p.setIsDefault(p.getId().equals(firstDefault.getId()));
+                        boolean newIsDefault = p.getId().equals(firstDefault.getId());
+                        if (Boolean.TRUE.equals(p.getIsDefault()) != newIsDefault) {
+                            p.setIsDefault(newIsDefault);
+                            paramsToSave.add(p);
+                        }
                     }
                 }
             }
+        }
+
+        if (!paramsToSave.isEmpty()) {
+            brewingParamRepository.saveAll(paramsToSave);
+            log.info("Fixed {} brewing params with incorrect default status for tea {}", paramsToSave.size(), teaId);
         }
 
         return params.stream()
