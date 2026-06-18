@@ -15,6 +15,7 @@ public class StorageRecordResponse {
     private BigDecimal temperature;
     private BigDecimal humidity;
     private String sealCondition;
+    private Long brewingSessionId;
     private BigDecimal stockChange;
     private BigDecimal currentStock;
     private LocalDateTime recordDate;

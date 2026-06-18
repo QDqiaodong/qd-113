@@ -149,6 +149,7 @@ public class StorageRecordService {
         record.setTemperature(request.getTemperature());
         record.setHumidity(request.getHumidity());
         record.setSealCondition(request.getSealCondition());
+        record.setBrewingSessionId(request.getBrewingSessionId());
         record.setStockChange(request.getStockChange());
         record.setNotes(request.getNotes());
     }
@@ -162,6 +163,7 @@ public class StorageRecordService {
         resp.setTemperature(record.getTemperature());
         resp.setHumidity(record.getHumidity());
         resp.setSealCondition(record.getSealCondition());
+        resp.setBrewingSessionId(record.getBrewingSessionId());
         resp.setStockChange(record.getStockChange());
         resp.setCurrentStock(record.getCurrentStock());
         resp.setRecordDate(record.getRecordDate());

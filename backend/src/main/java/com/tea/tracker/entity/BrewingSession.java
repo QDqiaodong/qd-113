@@ -41,6 +41,15 @@ public class BrewingSession {
     @Column(name = "taste_impression", length = 1000)
     private String tasteImpression;
 
+    @Column(name = "stock_deducted")
+    private Boolean stockDeducted;
+
+    @Column(name = "stock_amount", precision = 10, scale = 2)
+    private BigDecimal stockAmount;
+
+    @Column(name = "storage_record_id")
+    private Long storageRecordId;
+
     @Column(name = "session_date")
     private LocalDateTime sessionDate;
 

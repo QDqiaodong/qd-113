@@ -1,8 +1,12 @@
 package com.tea.tracker.dto;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.Data;
+
+import java.math.BigDecimal;
 
 @Data
 public class BrewingSessionRequest {
@@ -30,4 +34,10 @@ public class BrewingSessionRequest {
     private Integer subsequentInfusionTime;
 
     private String tasteImpression;
+
+    private Boolean deductStock;
+
+    @DecimalMin(value = "0", message = "扣减数量不能为负数")
+    @DecimalMax(value = "99999.99", message = "扣减数量不能超过99999.99")
+    private BigDecimal stockAmount;
 }

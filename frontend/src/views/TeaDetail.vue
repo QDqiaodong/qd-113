@@ -378,11 +378,16 @@
         </div>
         <el-row :gutter="16">
           <el-col v-for="session in brewingSessions" :key="session.id" :xs="24" :sm="12">
-            <el-card class="session-card" shadow="hover">
+            <el-card class="session-card" shadow="hover" :class="{ 'session-card-deducted': session.stockDeducted }">
               <div class="session-card-header">
                 <span class="session-date">{{ formatTime(session.sessionDate) }}</span>
                 <div>
                   <el-tag v-if="session.brewingParamName" size="small" type="info">{{ session.brewingParamName }}</el-tag>
+                  <el-tag v-if="session.stockDeducted" size="small" type="danger" effect="light" class="stock-deduct-tag">
+                    <el-icon><Minus /></el-icon>
+                    -{{ session.stockAmount }} {{ tea.stockUnit || '克' }}
+                  </el-tag>
+                  <el-tag v-else size="small" type="info" effect="plain">未扣减库存</el-tag>
                   <el-button size="small" text type="primary" @click="openSessionDialog(session)">编辑</el-button>
                   <el-button size="small" text type="danger" @click="handleDeleteSession(session.id)">删除</el-button>
                 </div>
@@ -408,6 +413,12 @@
                   <span class="session-label">后续泡</span>
                   <span class="session-value">{{ session.subsequentInfusionTime != null ? session.subsequentInfusionTime + 's' : '-' }}</span>
                 </div>
+              </div>
+              <div v-if="session.stockDeducted" class="session-stock-info">
+                <el-icon><ShoppingCart /></el-icon>
+                <span>本次扣减：<strong>-{{ session.stockAmount }} {{ tea.stockUnit || '克' }}</strong></span>
+                <el-divider direction="vertical" />
+                <span>扣减后库存：<strong>{{ session.currentStockAfterDeduction != null ? session.currentStockAfterDeduction : tea.currentStock || 0 }} {{ tea.stockUnit || '克' }}</strong></span>
               </div>
               <div v-if="session.tasteImpression" class="session-impression">
                 {{ session.tasteImpression }}
@@ -731,10 +742,10 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="sessionDialogVisible" :title="editingSession ? '编辑冲泡记录' : '添加冲泡记录'" width="600px" destroy-on-close>
+    <el-dialog v-model="sessionDialogVisible" :title="editingSession ? '编辑冲泡记录' : '添加冲泡记录'" width="650px" destroy-on-close>
       <el-form :model="sessionForm" label-width="100px">
         <el-form-item label="冲泡方案">
-          <el-select v-model="sessionForm.brewingParamId" placeholder="选择关联的冲泡方案（可选）" clearable style="width:100%">
+          <el-select v-model="sessionForm.brewingParamId" placeholder="选择关联的冲泡方案（可选）" clearable style="width:100%" @change="onBrewingParamChange">
             <el-option v-for="p in brewingParams" :key="p.id" :label="p.paramName || '冲泡方案'" :value="p.id" />
           </el-select>
         </el-form-item>
@@ -749,8 +760,48 @@
           <el-col :span="6"><el-form-item label="后续泡"><el-input-number v-model="sessionForm.subsequentInfusionTime" :min="1" :max="300" style="width:100%" /></el-form-item></el-col>
         </el-row>
         <el-form-item label="口感印象">
-          <el-input v-model="sessionForm.tasteImpression" type="textarea" :rows="3" placeholder="记录本次冲泡的口感体验" />
+          <el-input v-model="sessionForm.tasteImpression" type="textarea" :rows="2" placeholder="记录本次冲泡的口感体验" />
         </el-form-item>
+        <el-divider>
+          <span class="divider-with-icon">
+            <el-icon><Box /></el-icon>
+            库存扣减
+          </span>
+        </el-divider>
+        <el-alert
+          :title="`当前库存：${tea.currentStock || 0} ${tea.stockUnit || '克'}`"
+          :type="getSessionStockAlertType()"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 16px;"
+        />
+        <el-form-item label="扣减库存">
+          <el-switch v-model="sessionForm.deductStock" />
+          <span class="form-tip">开启后，保存时将从库存中扣除对应茶叶数量</span>
+        </el-form-item>
+        <el-form-item label="扣减数量" v-if="sessionForm.deductStock">
+          <el-input-number
+            v-model="sessionForm.stockAmount"
+            :min="0.1"
+            :max="Number(tea.currentStock) || 99999"
+            :step="0.5"
+            :precision="2"
+            :disabled="!sessionForm.deductStock"
+            style="width:200px"
+          />
+          <span style="margin-left: 8px;">{{ tea.stockUnit || '克' }}</span>
+          <el-tooltip v-if="getDefaultTeaAmount()" :content="`${getSelectedParamName()?.paramName || '冲泡方案'}默认投茶量：${getDefaultTeaAmount()}克`">
+            <el-button size="small" text style="margin-left: 8px;" @click="fillDefaultTeaAmount">使用方案投茶量</el-button>
+          </el-tooltip>
+        </el-form-item>
+        <el-alert
+          v-if="sessionForm.deductStock && sessionForm.stockAmount"
+          :title="getSessionStockPreview()"
+          :type="getSessionStockPreviewType()"
+          :closable="false"
+          show-icon
+          style="margin-top: 8px;"
+        />
       </el-form>
       <template #footer>
         <el-button @click="sessionDialogVisible = false">取消</el-button>
@@ -763,7 +814,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, InfoFilled, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
+import { ArrowLeft, InfoFilled, TrendCharts, DataAnalysis, Minus, ShoppingCart, Box } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getTeaById, deleteTea,
@@ -1376,41 +1427,178 @@ async function handleDeleteTasting(id) {
 
 function openSessionDialog(session = null) {
   editingSession.value = session
-  sessionForm.value = session ? { ...session } : {
-    brewingParamId: null,
-    actualWaterTemperature: null,
-    firstInfusionTime: null,
-    secondInfusionTime: null,
-    thirdInfusionTime: null,
-    subsequentInfusionTime: null,
-    tasteImpression: ''
+  if (session) {
+    sessionForm.value = {
+      ...session,
+      deductStock: session.stockDeducted || false,
+      stockAmount: session.stockAmount || null
+    }
+  } else {
+    const defaultParam = defaultBrewing.value
+    sessionForm.value = {
+      brewingParamId: defaultParam ? defaultParam.id : null,
+      actualWaterTemperature: defaultParam ? defaultParam.waterTemperature : null,
+      firstInfusionTime: defaultParam ? defaultParam.firstInfusionTime : null,
+      secondInfusionTime: defaultParam ? defaultParam.secondInfusionTime : null,
+      thirdInfusionTime: defaultParam ? defaultParam.thirdInfusionTime : null,
+      subsequentInfusionTime: defaultParam ? defaultParam.subsequentInfusionTime : null,
+      tasteImpression: '',
+      deductStock: (Number(tea.value.currentStock) || 0) > 0,
+      stockAmount: defaultParam ? defaultParam.teaAmount : null
+    }
   }
   sessionDialogVisible.value = true
 }
 
+function getSelectedParamName() {
+  if (!sessionForm.value.brewingParamId) return null
+  return brewingParams.value.find(p => p.id === sessionForm.value.brewingParamId)
+}
+
+function getDefaultTeaAmount() {
+  const p = getSelectedParamName()
+  return p ? p.teaAmount : null
+}
+
+function fillDefaultTeaAmount() {
+  const amount = getDefaultTeaAmount()
+  if (amount) {
+    sessionForm.value.stockAmount = amount
+  }
+}
+
+function onBrewingParamChange() {
+  const p = getSelectedParamName()
+  if (p) {
+    if (sessionForm.value.actualWaterTemperature == null) sessionForm.value.actualWaterTemperature = p.waterTemperature
+    if (sessionForm.value.firstInfusionTime == null) sessionForm.value.firstInfusionTime = p.firstInfusionTime
+    if (sessionForm.value.secondInfusionTime == null) sessionForm.value.secondInfusionTime = p.secondInfusionTime
+    if (sessionForm.value.thirdInfusionTime == null) sessionForm.value.thirdInfusionTime = p.thirdInfusionTime
+    if (sessionForm.value.subsequentInfusionTime == null) sessionForm.value.subsequentInfusionTime = p.subsequentInfusionTime
+  }
+}
+
+function getSessionStockAlertType() {
+  const stock = Number(tea.value.currentStock) || 0
+  if (stock <= 0) return 'error'
+  if (stock < 50) return 'warning'
+  return 'success'
+}
+
+function getSessionStockPreview() {
+  const current = Number(tea.value.currentStock) || 0
+  const amount = Number(sessionForm.value.stockAmount) || 0
+  let resultStock
+  let previewText
+
+  if (editingSession.value && editingSession.value.stockDeducted) {
+    const oldAmount = Number(editingSession.value.stockAmount) || 0
+    const effective = current + oldAmount
+    resultStock = effective - amount
+    previewText = `编辑冲泡记录：\n\n回退原扣减后库存：${effective} ${tea.value.stockUnit || '克'}\n本次扣减：-${amount} ${tea.value.stockUnit || '克'}\n扣减后库存：${resultStock} ${tea.value.stockUnit || '克'}`
+  } else {
+    resultStock = current - amount
+    previewText = `即将添加冲泡记录：\n\n当前库存：${current} ${tea.value.stockUnit || '克'}\n本次扣减：-${amount} ${tea.value.stockUnit || '克'}\n扣减后库存：${resultStock} ${tea.value.stockUnit || '克'}`
+  }
+
+  if (resultStock < 0) {
+    previewText += `\n\n⚠️ 警告：扣减后库存将为负数！`
+  }
+  return previewText
+}
+
+function getSessionStockPreviewType() {
+  const current = Number(tea.value.currentStock) || 0
+  const amount = Number(sessionForm.value.stockAmount) || 0
+  let resultStock
+  if (editingSession.value && editingSession.value.stockDeducted) {
+    const oldAmount = Number(editingSession.value.stockAmount) || 0
+    resultStock = (current + oldAmount) - amount
+  } else {
+    resultStock = current - amount
+  }
+  if (resultStock < 0) return 'error'
+  if (resultStock < 50) return 'warning'
+  return 'success'
+}
+
 async function handleSaveSession() {
+  const deductStock = sessionForm.value.deductStock
+  const stockAmount = Number(sessionForm.value.stockAmount) || 0
+
+  if (deductStock) {
+    if (!stockAmount || stockAmount <= 0) {
+      ElMessage.error('请填写有效的扣减数量')
+      return
+    }
+    const currentStock = Number(tea.value.currentStock) || 0
+    let finalStock
+    if (editingSession.value && editingSession.value.stockDeducted) {
+      const oldAmount = Number(editingSession.value.stockAmount) || 0
+      finalStock = (currentStock + oldAmount) - stockAmount
+    } else {
+      finalStock = currentStock - stockAmount
+    }
+    if (finalStock < 0) {
+      ElMessage.error('库存不足，扣减后库存将为负数，请调整扣减数量或先通过仓储记录补充库存')
+      return
+    }
+    try {
+      await ElMessageBox.confirm(getSessionStockPreview(), '确认库存扣减', {
+        type: getSessionStockPreviewType() === 'error' ? 'error' : getSessionStockPreviewType() === 'warning' ? 'warning' : 'info',
+        confirmButtonText: '确认扣减并保存',
+        cancelButtonText: '取消',
+        dangerouslyUseHTMLString: false
+      })
+    } catch {
+      return
+    }
+  }
+
   saving.value = true
   try {
+    let result
     if (editingSession.value) {
-      await updateBrewingSession(teaId, editingSession.value.id, sessionForm.value)
+      result = await updateBrewingSession(teaId, editingSession.value.id, sessionForm.value)
     } else {
-      await createBrewingSession(teaId, sessionForm.value)
+      result = await createBrewingSession(teaId, sessionForm.value)
     }
-    ElMessage.success('保存成功')
+    let successMsg = '保存成功'
+    if (deductStock && result.data) {
+      successMsg = `保存成功，已扣减库存 -${result.data.stockAmount || stockAmount} ${tea.value.stockUnit || '克'}，当前库存：${result.data.currentStockAfterDeduction != null ? result.data.currentStockAfterDeduction : tea.value.currentStock} ${tea.value.stockUnit || '克'}`
+    }
+    ElMessage.success(successMsg)
     sessionDialogVisible.value = false
-    const res = await getBrewingSessions(teaId)
-    brewingSessions.value = res.data || []
+    const [teaRes, sessionRes] = await Promise.all([
+      getTeaById(teaId),
+      getBrewingSessions(teaId)
+    ])
+    tea.value = teaRes.data
+    brewingSessions.value = sessionRes.data || []
   } finally {
     saving.value = false
   }
 }
 
 async function handleDeleteSession(id) {
-  await ElMessageBox.confirm('确定删除此冲泡记录？', '确认删除', { type: 'warning' })
+  const session = brewingSessions.value.find(s => s.id === id)
+  let confirmMsg = '确定删除此冲泡记录？'
+  if (session && session.stockDeducted) {
+    confirmMsg = `确定删除此冲泡记录？\n\n该记录已扣减库存 -${session.stockAmount} ${tea.value.stockUnit || '克'}，删除后库存将回退恢复。`
+  }
+  await ElMessageBox.confirm(confirmMsg, '确认删除', { type: 'warning' })
   await deleteBrewingSession(teaId, id)
-  ElMessage.success('删除成功')
-  const res = await getBrewingSessions(teaId)
-  brewingSessions.value = res.data || []
+  let successMsg = '删除成功'
+  if (session && session.stockDeducted) {
+    successMsg = `删除成功，库存已回退 +${session.stockAmount} ${tea.value.stockUnit || '克'}`
+  }
+  ElMessage.success(successMsg)
+  const [teaRes, sessionRes] = await Promise.all([
+    getTeaById(teaId),
+    getBrewingSessions(teaId)
+  ])
+  tea.value = teaRes.data
+  brewingSessions.value = sessionRes.data || []
 }
 
 onMounted(loadTea)
@@ -2229,6 +2417,50 @@ onUnmounted(() => {
 
 .auto-tag {
   margin-left: 4px;
+}
+
+.session-card.session-card-deducted {
+  border: 1px solid #fecaca;
+  background: linear-gradient(135deg, #fffaf0, #fff);
+}
+
+.stock-deduct-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+}
+
+.session-stock-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #fef2f2, #fff7ed);
+  border: 1px dashed #fca5a5;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #7c2d12;
+  flex-wrap: wrap;
+}
+
+.session-stock-info .el-icon {
+  color: #dc2626;
+}
+
+.divider-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #2d6a4f;
+}
+
+.form-tip {
+  margin-left: 12px;
+  font-size: 12px;
+  color: #909399;
 }
 
 @media (max-width: 768px) {

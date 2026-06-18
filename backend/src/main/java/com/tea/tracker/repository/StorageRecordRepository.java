@@ -17,4 +17,8 @@ public interface StorageRecordRepository extends JpaRepository<StorageRecord, Lo
     List<StorageRecord> findByTeaIdOrderByRecordDateAsc(Long teaId);
 
     Optional<StorageRecord> findTopByTeaIdOrderByRecordDateDesc(Long teaId);
+
+    Optional<StorageRecord> findByBrewingSessionId(Long brewingSessionId);
+
+    void deleteByBrewingSessionId(Long brewingSessionId);
 }

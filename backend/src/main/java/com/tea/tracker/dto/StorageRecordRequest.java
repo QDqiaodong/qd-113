@@ -21,6 +21,8 @@ public class StorageRecordRequest {
 
     private String sealCondition;
 
+    private Long brewingSessionId;
+
     @DecimalMin(value = "-99999.99", message = "库存变化不能低于-99999.99")
     @DecimalMax(value = "99999.99", message = "库存变化不能高于99999.99")
     private BigDecimal stockChange;

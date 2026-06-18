@@ -33,6 +33,9 @@ public class StorageRecord {
     @Column(name = "seal_condition", length = 50)
     private String sealCondition;
 
+    @Column(name = "brewing_session_id")
+    private Long brewingSessionId;
+
     @Column(name = "stock_change", precision = 10, scale = 2)
     private BigDecimal stockChange;
 
