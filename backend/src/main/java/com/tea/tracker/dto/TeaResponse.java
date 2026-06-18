@@ -14,6 +14,7 @@ public class TeaResponse {
     private String teaCategory;
     private String originRegion;
     private Integer harvestYear;
+    private String yearNote;
     private String storageMethod;
     private BigDecimal currentStock;
     private String stockUnit;

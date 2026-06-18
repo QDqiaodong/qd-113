@@ -31,6 +31,9 @@ public class Tea {
     @Column(name = "harvest_year")
     private Integer harvestYear;
 
+    @Column(name = "year_note", length = 200)
+    private String yearNote;
+
     @Column(name = "storage_method", length = 100)
     private String storageMethod;
 

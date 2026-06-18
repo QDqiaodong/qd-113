@@ -140,7 +140,11 @@
           <el-descriptions-item label="茶品名称">{{ tea.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="茶类">{{ tea.teaCategory || '-' }}</el-descriptions-item>
           <el-descriptions-item label="产区">{{ tea.originRegion || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="采摘年份">{{ tea.harvestYear || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="采摘年份">
+            <span>{{ tea.harvestYear || '-' }}</span>
+            <el-tag v-if="isAgingTea(tea.teaCategory)" size="small" type="warning" effect="light" style="margin-left: 8px;">可陈化</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="isAgingTea(tea.teaCategory) && tea.yearNote" label="年份说明" :span="2">{{ tea.yearNote }}</el-descriptions-item>
           <el-descriptions-item label="储存方式">{{ tea.storageMethod || '未设置' }}</el-descriptions-item>
           <el-descriptions-item label="现有存量">
             <span :class="getStockTextClass()">{{ tea.currentStock || 0 }} {{ tea.stockUnit || '克' }}</span>
@@ -903,17 +907,31 @@ const scoreMarks = {
   100: '极佳'
 }
 
+const TASTING_SCORE_WEIGHTS = {
+  aroma: 0.30,
+  liquorColor: 0.20,
+  taste: 0.35,
+  aftertaste: 0.15
+}
+
 const calculatedOverallScore = computed(() => {
-  const scores = [
-    tastingForm.value.aromaScore,
-    tastingForm.value.liquorColorScore,
-    tastingForm.value.tasteScore,
-    tastingForm.value.aftertasteScore
-  ].filter(s => s != null && s > 0)
-  
-  if (scores.length === 0) return 0
-  const sum = scores.reduce((a, b) => a + Number(b), 0)
-  return Math.round(sum / scores.length)
+  const items = [
+    { key: 'aroma', score: tastingForm.value.aromaScore, weight: TASTING_SCORE_WEIGHTS.aroma },
+    { key: 'liquorColor', score: tastingForm.value.liquorColorScore, weight: TASTING_SCORE_WEIGHTS.liquorColor },
+    { key: 'taste', score: tastingForm.value.tasteScore, weight: TASTING_SCORE_WEIGHTS.taste },
+    { key: 'aftertaste', score: tastingForm.value.aftertasteScore, weight: TASTING_SCORE_WEIGHTS.aftertaste }
+  ].filter(item => item.score != null && item.score > 0)
+
+  if (items.length === 0) return 0
+
+  let totalWeight = 0
+  let weightedSum = 0
+  items.forEach(item => {
+    weightedSum += Number(item.score) * item.weight
+    totalWeight += item.weight
+  })
+
+  return Math.round(weightedSum / totalWeight)
 })
 
 watch(
@@ -951,6 +969,12 @@ function formatShortDate(t) {
 function getCategoryTagType(category) {
   const map = { '绿茶': 'success', '红茶': 'danger', '乌龙茶': 'warning', '白茶': 'info', '黄茶': 'warning', '花茶': 'success' }
   return map[category] || ''
+}
+
+const AGING_TEA_CATEGORIES = ['普洱茶', '白茶', '黑茶']
+
+function isAgingTea(category) {
+  return AGING_TEA_CATEGORIES.includes(category)
 }
 
 function getInfusionData(param) {

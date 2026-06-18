@@ -18,15 +18,21 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TeaService {
+
+    private static final Set<String> AGING_TEA_CATEGORIES = Set.of("普洱茶", "白茶", "黑茶");
+    private static final int MIN_AGING_HARVEST_YEAR = 1900;
+    private static final int MIN_REGULAR_HARVEST_YEAR = 1950;
 
     private final TeaRepository teaRepository;
     private final StorageRecordRepository storageRecordRepository;
@@ -35,6 +41,7 @@ public class TeaService {
 
     @Transactional
     public TeaResponse createTea(TeaRequest request) {
+        validateHarvestYear(request.getTeaCategory(), request.getHarvestYear());
         Tea tea = new Tea();
         mapRequestToEntity(request, tea);
         Tea saved = teaRepository.save(tea);
@@ -46,10 +53,25 @@ public class TeaService {
     public TeaResponse updateTea(Long id, TeaRequest request) {
         Tea tea = teaRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("茶叶档案不存在: " + id));
+        validateHarvestYear(request.getTeaCategory(), request.getHarvestYear());
         mapRequestToEntity(request, tea);
         Tea updated = teaRepository.save(tea);
         log.info("Updated tea: {} (id={})", updated.getName(), updated.getId());
         return toResponse(updated);
+    }
+
+    private void validateHarvestYear(String teaCategory, Integer harvestYear) {
+        if (harvestYear == null) {
+            return;
+        }
+        int currentYear = LocalDate.now().getYear();
+        if (harvestYear > currentYear) {
+            throw new IllegalArgumentException("采摘年份不能晚于当前年份: " + currentYear + "年");
+        }
+        int minYear = AGING_TEA_CATEGORIES.contains(teaCategory) ? MIN_AGING_HARVEST_YEAR : MIN_REGULAR_HARVEST_YEAR;
+        if (harvestYear < minYear) {
+            throw new IllegalArgumentException("采摘年份不能早于" + minYear + "年");
+        }
     }
 
     @Transactional
@@ -126,6 +148,7 @@ public class TeaService {
         resp.setTeaCategory(tea.getTeaCategory());
         resp.setOriginRegion(tea.getOriginRegion());
         resp.setHarvestYear(tea.getHarvestYear());
+        resp.setYearNote(tea.getYearNote());
         resp.setStorageMethod(tea.getStorageMethod());
         resp.setCurrentStock(tea.getCurrentStock());
         resp.setStockUnit(tea.getStockUnit());
@@ -191,6 +214,11 @@ public class TeaService {
         tea.setTeaCategory(request.getTeaCategory());
         tea.setOriginRegion(request.getOriginRegion());
         tea.setHarvestYear(request.getHarvestYear());
+        if (AGING_TEA_CATEGORIES.contains(request.getTeaCategory())) {
+            tea.setYearNote(request.getYearNote());
+        } else {
+            tea.setYearNote(null);
+        }
         tea.setStorageMethod(request.getStorageMethod());
         tea.setCurrentStock(request.getCurrentStock());
         tea.setStockUnit(request.getStockUnit());
@@ -205,6 +233,7 @@ public class TeaService {
         resp.setTeaCategory(tea.getTeaCategory());
         resp.setOriginRegion(tea.getOriginRegion());
         resp.setHarvestYear(tea.getHarvestYear());
+        resp.setYearNote(tea.getYearNote());
         resp.setStorageMethod(tea.getStorageMethod());
         resp.setCurrentStock(tea.getCurrentStock());
         resp.setStockUnit(tea.getStockUnit());

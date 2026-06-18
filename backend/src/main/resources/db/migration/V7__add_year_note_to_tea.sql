@@ -1,0 +1,1 @@
+ALTER TABLE tea ADD COLUMN year_note VARCHAR(200) COMMENT '年份说明';

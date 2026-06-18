@@ -72,6 +72,11 @@ public class TastingNoteService {
                 .collect(Collectors.toList());
     }
 
+    private static final double AROMA_WEIGHT = 0.30;
+    private static final double LIQUOR_COLOR_WEIGHT = 0.20;
+    private static final double TASTE_WEIGHT = 0.35;
+    private static final double AFTERTASTE_WEIGHT = 0.15;
+
     private void mapRequestToEntity(TastingNoteRequest request, TastingNote note) {
         note.setBrewingMethod(request.getBrewingMethod());
         note.setAromaScore(request.getAromaScore());
@@ -90,28 +95,39 @@ public class TastingNoteService {
         if (request.getOverallScore() != null && request.getOverallScore() > 0) {
             return request.getOverallScore();
         }
-        int count = 0;
-        int sum = 0;
-        if (request.getAromaScore() != null) {
-            sum += request.getAromaScore();
-            count++;
+        return calculateWeightedOverallScore(
+                request.getAromaScore(),
+                request.getLiquorColorScore(),
+                request.getTasteScore(),
+                request.getAftertasteScore()
+        );
+    }
+
+    private Integer calculateWeightedOverallScore(Integer aroma, Integer liquorColor, Integer taste, Integer aftertaste) {
+        double totalWeight = 0;
+        double weightedSum = 0;
+
+        if (aroma != null) {
+            weightedSum += aroma * AROMA_WEIGHT;
+            totalWeight += AROMA_WEIGHT;
         }
-        if (request.getLiquorColorScore() != null) {
-            sum += request.getLiquorColorScore();
-            count++;
+        if (liquorColor != null) {
+            weightedSum += liquorColor * LIQUOR_COLOR_WEIGHT;
+            totalWeight += LIQUOR_COLOR_WEIGHT;
         }
-        if (request.getTasteScore() != null) {
-            sum += request.getTasteScore();
-            count++;
+        if (taste != null) {
+            weightedSum += taste * TASTE_WEIGHT;
+            totalWeight += TASTE_WEIGHT;
         }
-        if (request.getAftertasteScore() != null) {
-            sum += request.getAftertasteScore();
-            count++;
+        if (aftertaste != null) {
+            weightedSum += aftertaste * AFTERTASTE_WEIGHT;
+            totalWeight += AFTERTASTE_WEIGHT;
         }
-        if (count == 0) {
+
+        if (totalWeight == 0) {
             return 0;
         }
-        return Math.round((float) sum / count);
+        return (int) Math.round(weightedSum / totalWeight);
     }
 
     private TastingNoteResponse toResponse(TastingNote note) {
@@ -128,7 +144,18 @@ public class TastingNoteService {
         resp.setTasteDesc(note.getTasteDesc());
         resp.setAftertasteScore(note.getAftertasteScore());
         resp.setAftertasteDesc(note.getAftertasteDesc());
-        resp.setOverallScore(note.getOverallScore());
+
+        Integer overallScore = note.getOverallScore();
+        if (overallScore == null || overallScore == 0) {
+            overallScore = calculateWeightedOverallScore(
+                    note.getAromaScore(),
+                    note.getLiquorColorScore(),
+                    note.getTasteScore(),
+                    note.getAftertasteScore()
+            );
+        }
+        resp.setOverallScore(overallScore);
+
         resp.setImpression(note.getImpression());
         resp.setTastingDate(note.getTastingDate());
         resp.setCreatedAt(note.getCreatedAt());

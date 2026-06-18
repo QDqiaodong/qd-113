@@ -17,9 +17,9 @@ public class TeaRequest {
     @NotBlank(message = "产区不能为空")
     private String originRegion;
 
-    @Min(value = 1900, message = "年份不能早于1900年")
-    @Max(value = 2100, message = "年份不能晚于2100年")
     private Integer harvestYear;
+
+    private String yearNote;
 
     private String storageMethod;
 

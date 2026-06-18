@@ -29,7 +29,29 @@
             </el-select>
           </el-form-item>
           <el-form-item label="采摘年份" prop="harvestYear">
-            <el-date-picker v-model="form.harvestYear" type="year" placeholder="选择采摘年份" style="width:100%" value-format="YYYY" />
+            <el-date-picker 
+              v-model="form.harvestYear" 
+              type="year" 
+              placeholder="选择采摘年份" 
+              style="width:100%" 
+              value-format="YYYY"
+              :disabled-date="disabledHarvestYear"
+            />
+            <div v-if="form.teaCategory" class="field-hint">
+              <el-text size="small" type="info">
+                {{ getHarvestYearHint() }}
+              </el-text>
+            </div>
+          </el-form-item>
+          <el-form-item v-if="isAgingTeaCategory" label="年份说明" prop="yearNote">
+            <el-input 
+              v-model="form.yearNote" 
+              type="textarea" 
+              :rows="2" 
+              placeholder="如：头春茶、雨前茶、古树茶等年份相关说明" 
+              maxlength="200" 
+              show-word-limit 
+            />
           </el-form-item>
           <el-form-item label="茶叶描述">
             <el-input v-model="form.description" type="textarea" :rows="3" placeholder="简要描述茶叶特点" maxlength="500" show-word-limit />
@@ -148,10 +170,11 @@
             <el-descriptions-item label="茶品名称">{{ form.name }}</el-descriptions-item>
             <el-descriptions-item label="茶类">{{ form.teaCategory }}</el-descriptions-item>
             <el-descriptions-item label="产区">{{ form.originRegion }}</el-descriptions-item>
-            <el-descriptions-item label="采摘年份">{{ form.harvestYear }}</el-descriptions-item>
-            <el-descriptions-item label="储存方式">{{ form.storageMethod }}</el-descriptions-item>
+            <el-descriptions-item label="采摘年份">{{ form.harvestYear || '未设置' }}</el-descriptions-item>
+            <el-descriptions-item v-if="isAgingTeaCategory && form.yearNote" label="年份说明" :span="2">{{ form.yearNote }}</el-descriptions-item>
+            <el-descriptions-item label="储存方式">{{ form.storageMethod || '未设置' }}</el-descriptions-item>
             <el-descriptions-item label="现有存量">{{ form.currentStock }}{{ form.stockUnit }}</el-descriptions-item>
-            <el-descriptions-item label="描述" :span="2">{{ form.description }}</el-descriptions-item>
+            <el-descriptions-item label="描述" :span="2">{{ form.description || '暂无' }}</el-descriptions-item>
           </el-descriptions>
           <el-descriptions v-if="brewingForm.waterTemperature" title="冲泡参数" :column="2" border style="margin-top:16px">
             <el-descriptions-item label="参数名称">{{ brewingForm.paramName || '默认' }}</el-descriptions-item>
@@ -196,17 +219,42 @@ const formRef = ref(null)
 
 const { setCurveData, clearCurveData } = useBrewingCurveStore()
 
+const AGING_TEA_CATEGORIES = ['普洱茶', '白茶', '黑茶']
+const MIN_AGING_HARVEST_YEAR = 1900
+const MIN_REGULAR_HARVEST_YEAR = 1950
+
 const form = ref({
   name: '',
   teaCategory: '',
   originRegion: '',
   harvestYear: null,
+  yearNote: '',
   storageMethod: '',
   currentStock: 0,
   stockUnit: '克',
   description: '',
   imageUrl: ''
 })
+
+const isAgingTeaCategory = computed(() => {
+  return AGING_TEA_CATEGORIES.includes(form.value.teaCategory)
+})
+
+const currentYear = new Date().getFullYear()
+
+function disabledHarvestYear(date) {
+  const year = date.getFullYear()
+  const minYear = isAgingTeaCategory.value ? MIN_AGING_HARVEST_YEAR : MIN_REGULAR_HARVEST_YEAR
+  return year < minYear || year > currentYear
+}
+
+function getHarvestYearHint() {
+  const minYear = isAgingTeaCategory.value ? MIN_AGING_HARVEST_YEAR : MIN_REGULAR_HARVEST_YEAR
+  if (isAgingTeaCategory.value) {
+    return `可陈化茶类，采摘年份范围：${minYear} - ${currentYear}年`
+  }
+  return `采摘年份范围：${minYear} - ${currentYear}年`
+}
 
 const brewingForm = ref({
   paramName: '日常冲泡',
@@ -324,6 +372,7 @@ onMounted(async () => {
       teaCategory: tea.teaCategory,
       originRegion: tea.originRegion,
       harvestYear: tea.harvestYear,
+      yearNote: tea.yearNote || '',
       storageMethod: tea.storageMethod,
       currentStock: tea.currentStock,
       stockUnit: tea.stockUnit,
