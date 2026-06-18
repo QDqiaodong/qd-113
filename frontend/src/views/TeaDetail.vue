@@ -845,7 +845,7 @@ const router = useRouter()
 const teaId = route.params.id
 const loading = ref(false)
 const saving = ref(false)
-const activeTab = ref('basic')
+const activeTab = ref(route.query.tab || 'basic')
 
 const { setCurveData, clearCurveData, getBrewingParamFromCurve } = useBrewingCurveStore()
 
@@ -1633,6 +1633,18 @@ async function handleDeleteSession(id) {
   tea.value = teaRes.data
   brewingSessions.value = sessionRes.data || []
 }
+
+watch(activeTab, (newTab) => {
+  router.replace({
+    query: { ...route.query, tab: newTab }
+  })
+})
+
+watch(() => route.query.tab, (newTab) => {
+  if (newTab && newTab !== activeTab.value) {
+    activeTab.value = newTab
+  }
+})
 
 onMounted(loadTea)
 

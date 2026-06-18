@@ -205,7 +205,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { getTeaList, getTeaById, getBrewingParams, getTastingNotes, previewBrewingParamSync, syncBrewingParam } from '../api/tea'
@@ -262,7 +262,7 @@ const sameCategoryTeas = computed(() => {
 })
 
 const sourceParams = computed(() => {
-  const params = brewingDataMap.value[sourceTea.value] || []
+  const params = brewingDataMap.value[sourceTeaId.value] || []
   return params
 })
 
@@ -289,6 +289,14 @@ function onSourceTeaChange() {
     loadSyncPreview()
   }
 }
+
+watch(sourceTeaId, () => {
+  onSourceTeaChange()
+})
+
+watch([sourceParamId, targetTeaId], () => {
+  loadSyncPreview()
+})
 
 function formatValue(val) {
   if (val === null || val === undefined || val === '') return '-'
