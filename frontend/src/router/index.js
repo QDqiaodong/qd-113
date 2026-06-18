@@ -30,6 +30,11 @@ const routes = [
     path: '/aging-timeline',
     name: 'AgingTimeline',
     component: () => import('../views/AgingTimelineView.vue')
+  },
+  {
+    path: '/tea/:id/suitability',
+    name: 'StorageSuitability',
+    component: () => import('../views/StorageSuitabilityView.vue')
   }
 ]
 

@@ -267,7 +267,12 @@
       <el-tab-pane label="仓储记录" name="storage">
         <div class="tab-header">
           <span class="section-title">仓储记录</span>
-          <el-button type="primary" size="small" @click="openStorageDialog()">添加记录</el-button>
+          <div class="tab-header-actions">
+            <el-button type="success" size="small" @click="$router.push(`/tea/${tea.id}/suitability`)" :icon="DataAnalysis">
+              适宜度账册
+            </el-button>
+            <el-button type="primary" size="small" @click="openStorageDialog()">添加记录</el-button>
+          </div>
         </div>
 
         <el-card class="environment-card" shadow="never" v-if="storageRecords.length > 0">
@@ -752,7 +757,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, InfoFilled, TrendCharts } from '@element-plus/icons-vue'
+import { ArrowLeft, InfoFilled, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getTeaById, deleteTea,

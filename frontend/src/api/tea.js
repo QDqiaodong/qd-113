@@ -115,3 +115,19 @@ export function getTemplateVersions() {
 export function getTemplateVersion(category) {
   return request.get(`/tea-templates/${category}/version`)
 }
+
+export function evaluateSuitability(teaId, data) {
+  return request.post(`/teas/${teaId}/suitability/evaluate`, data)
+}
+
+export function getSuitabilityRecords(teaId) {
+  return request.get(`/teas/${teaId}/suitability`)
+}
+
+export function getLatestSuitability(teaId) {
+  return request.get(`/teas/${teaId}/suitability/latest`)
+}
+
+export function deleteSuitability(teaId, id) {
+  return request.delete(`/teas/${teaId}/suitability/${id}`)
+}
