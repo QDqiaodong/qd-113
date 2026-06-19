@@ -42,8 +42,12 @@ public class BrewingSessionService {
         session.setSessionDate(LocalDateTime.now());
 
         if (request.getBrewingParamId() != null) {
-            brewingParamRepository.findById(request.getBrewingParamId())
-                    .ifPresent(param -> session.setBrewingParamId(param.getId()));
+            BrewingParam param = brewingParamRepository.findById(request.getBrewingParamId())
+                    .orElseThrow(() -> new EntityNotFoundException("冲泡参数不存在: " + request.getBrewingParamId()));
+            if (!param.getTea().getId().equals(teaId)) {
+                throw new IllegalArgumentException("冲泡参数不属于当前茶叶");
+            }
+            session.setBrewingParamId(param.getId());
         }
 
         boolean shouldDeduct = Boolean.TRUE.equals(request.getDeductStock())
@@ -84,6 +88,14 @@ public class BrewingSessionService {
 
         boolean wasDeducted = Boolean.TRUE.equals(session.getStockDeducted());
         Long oldStorageRecordId = session.getStorageRecordId();
+
+        if (request.getBrewingParamId() != null) {
+            BrewingParam param = brewingParamRepository.findById(request.getBrewingParamId())
+                    .orElseThrow(() -> new EntityNotFoundException("冲泡参数不存在: " + request.getBrewingParamId()));
+            if (!param.getTea().getId().equals(teaId)) {
+                throw new IllegalArgumentException("冲泡参数不属于当前茶叶");
+            }
+        }
 
         mapRequestToEntity(request, session);
 

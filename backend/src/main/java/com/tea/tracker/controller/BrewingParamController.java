@@ -66,14 +66,14 @@ public class BrewingParamController {
             @PathVariable Long teaId,
             @RequestParam Long sourceParamId,
             @RequestParam Long targetTeaId) {
-        return ApiResponse.success(brewingParamService.previewSync(sourceParamId, targetTeaId));
+        return ApiResponse.success(brewingParamService.previewSync(teaId, sourceParamId, targetTeaId));
     }
 
     @PostMapping("/sync")
     public ApiResponse<ParamSyncRecordResponse> syncBrewingParam(
             @PathVariable Long teaId,
             @RequestBody BrewingParamSyncRequest request) {
-        return ApiResponse.success(brewingParamService.syncBrewingParam(request));
+        return ApiResponse.success(brewingParamService.syncBrewingParam(teaId, request));
     }
 
     @GetMapping("/sync-records")

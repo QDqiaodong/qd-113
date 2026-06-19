@@ -422,11 +422,15 @@ public class BrewingParamService {
     }
 
     @Transactional(readOnly = true)
-    public List<ParamSyncRecordResponse.FieldDifference> previewSync(Long sourceParamId, Long targetTeaId) {
+    public List<ParamSyncRecordResponse.FieldDifference> previewSync(Long sourceTeaId, Long sourceParamId, Long targetTeaId) {
         BrewingParam sourceParam = brewingParamRepository.findById(sourceParamId)
                 .orElseThrow(() -> new EntityNotFoundException("来源冲泡参数不存在: " + sourceParamId));
 
         Tea sourceTea = sourceParam.getTea();
+        if (!sourceTea.getId().equals(sourceTeaId)) {
+            throw new IllegalArgumentException("来源冲泡参数不属于指定的来源茶叶");
+        }
+
         Tea targetTea = teaRepository.findById(targetTeaId)
                 .orElseThrow(() -> new EntityNotFoundException("目标茶叶不存在: " + targetTeaId));
 
@@ -445,11 +449,15 @@ public class BrewingParamService {
     }
 
     @Transactional
-    public ParamSyncRecordResponse syncBrewingParam(BrewingParamSyncRequest request) {
+    public ParamSyncRecordResponse syncBrewingParam(Long sourceTeaId, BrewingParamSyncRequest request) {
         BrewingParam sourceParam = brewingParamRepository.findById(request.getSourceParamId())
                 .orElseThrow(() -> new EntityNotFoundException("来源冲泡参数不存在: " + request.getSourceParamId()));
 
         Tea sourceTea = sourceParam.getTea();
+        if (!sourceTea.getId().equals(sourceTeaId)) {
+            throw new IllegalArgumentException("来源冲泡参数不属于指定的来源茶叶");
+        }
+
         Tea targetTea = teaRepository.findById(request.getTargetTeaId())
                 .orElseThrow(() -> new EntityNotFoundException("目标茶叶不存在: " + request.getTargetTeaId()));
 
