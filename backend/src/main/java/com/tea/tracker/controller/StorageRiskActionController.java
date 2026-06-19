@@ -32,6 +32,14 @@ public class StorageRiskActionController {
         return ApiResponse.success(storageRiskActionService.updateRiskAction(teaId, id, request));
     }
 
+    @PatchMapping("/{id}/complete")
+    public ApiResponse<StorageRiskActionResponse> markAsComplete(
+            @PathVariable Long teaId,
+            @PathVariable Long id,
+            @RequestBody(required = false) StorageRiskActionRequest request) {
+        return ApiResponse.success(storageRiskActionService.markAsComplete(teaId, id, request));
+    }
+
     @GetMapping
     public ApiResponse<List<StorageRiskActionResponse>> getRiskActions(
             @PathVariable Long teaId,

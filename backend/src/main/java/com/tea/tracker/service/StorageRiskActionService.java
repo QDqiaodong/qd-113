@@ -127,6 +127,40 @@ public class StorageRiskActionService {
         return toResponse(saved);
     }
 
+    @Transactional
+    public StorageRiskActionResponse markAsComplete(Long teaId, Long id, StorageRiskActionRequest request) {
+        StorageRiskAction action = storageRiskActionRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("风险处置记录不存在: " + id));
+
+        if (!action.getTea().getId().equals(teaId)) {
+            throw new IllegalArgumentException("风险处置记录不属于当前茶叶");
+        }
+
+        action.setResultStatus("已完成");
+        if (request != null) {
+            if (request.getTemperatureAfter() != null) {
+                action.setTemperatureAfter(request.getTemperatureAfter());
+            }
+            if (request.getHumidityAfter() != null) {
+                action.setHumidityAfter(request.getHumidityAfter());
+            }
+            if (request.getSealAfter() != null) {
+                action.setSealAfter(request.getSealAfter());
+            }
+            if (request.getResultDescription() != null && !request.getResultDescription().isBlank()) {
+                action.setResultDescription(request.getResultDescription());
+            }
+            if (request.getFollowUpDate() != null) {
+                action.setFollowUpDate(request.getFollowUpDate());
+            }
+        }
+
+        StorageRiskAction saved = storageRiskActionRepository.save(action);
+        log.info("Marked storage risk action id={} as completed for tea {}", id, action.getTea().getName());
+
+        return toResponse(saved);
+    }
+
     @Transactional(readOnly = true)
     public List<StorageRiskActionResponse> getRiskActions(Long teaId) {
         return storageRiskActionRepository.findByTeaIdOrderByCreatedAtDesc(teaId)

@@ -176,6 +176,10 @@ export function updateRiskAction(teaId, id, data) {
   return request.put(`/teas/${teaId}/risk-actions/${id}`, data)
 }
 
+export function completeRiskAction(teaId, id, data) {
+  return request.patch(`/teas/${teaId}/risk-actions/${id}/complete`, data || {})
+}
+
 export function getRiskActions(teaId, status) {
   return request.get(`/teas/${teaId}/risk-actions`, { params: { status } })
 }

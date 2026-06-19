@@ -625,6 +625,7 @@ import {
   deleteSuitability,
   createRiskAction,
   updateRiskAction,
+  completeRiskAction,
   getRiskActions,
   deleteRiskAction
 } from '../api/tea'
@@ -873,7 +874,7 @@ async function markAsComplete(action) {
     await ElMessageBox.confirm('确定要将此处置记录标记为已完成吗？', '确认完成', {
       type: 'success'
     })
-    await updateRiskAction(teaId, action.id, { resultStatus: '已完成' })
+    await completeRiskAction(teaId, action.id)
     ElMessage.success('已标记为完成')
     await fetchRiskActions()
   } catch (e) {
