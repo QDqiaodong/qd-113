@@ -3,8 +3,10 @@ package com.tea.tracker.service;
 import com.tea.tracker.dto.StorageRiskActionRequest;
 import com.tea.tracker.dto.StorageRiskActionResponse;
 import com.tea.tracker.entity.StorageRiskAction;
+import com.tea.tracker.entity.StorageSuitability;
 import com.tea.tracker.entity.Tea;
 import com.tea.tracker.repository.StorageRiskActionRepository;
+import com.tea.tracker.repository.StorageSuitabilityRepository;
 import com.tea.tracker.repository.TeaRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +25,20 @@ public class StorageRiskActionService {
 
     private final StorageRiskActionRepository storageRiskActionRepository;
     private final TeaRepository teaRepository;
+    private final StorageSuitabilityRepository storageSuitabilityRepository;
 
     @Transactional
     public StorageRiskActionResponse createRiskAction(Long teaId, StorageRiskActionRequest request) {
         Tea tea = teaRepository.findById(teaId)
                 .orElseThrow(() -> new EntityNotFoundException("茶叶档案不存在: " + teaId));
+
+        if (request.getSuitabilityId() != null) {
+            StorageSuitability suitability = storageSuitabilityRepository.findById(request.getSuitabilityId())
+                    .orElseThrow(() -> new IllegalArgumentException("关联的仓储评估记录不存在，ID: " + request.getSuitabilityId() + "，请刷新页面后重试"));
+            if (!suitability.getTea().getId().equals(teaId)) {
+                throw new IllegalArgumentException("关联的仓储评估记录不属于当前茶叶，无法关联，请选择正确的评估记录");
+            }
+        }
 
         StorageRiskAction action = new StorageRiskAction();
         action.setTea(tea);
@@ -67,6 +78,11 @@ public class StorageRiskActionService {
         }
 
         if (request.getSuitabilityId() != null) {
+            StorageSuitability suitability = storageSuitabilityRepository.findById(request.getSuitabilityId())
+                    .orElseThrow(() -> new IllegalArgumentException("关联的仓储评估记录不存在，ID: " + request.getSuitabilityId() + "，请刷新页面后重试"));
+            if (!suitability.getTea().getId().equals(teaId)) {
+                throw new IllegalArgumentException("关联的仓储评估记录不属于当前茶叶，无法关联，请选择正确的评估记录");
+            }
             action.setSuitabilityId(request.getSuitabilityId());
         }
         if (request.getStorageRecordId() != null) {

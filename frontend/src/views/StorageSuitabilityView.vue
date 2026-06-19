@@ -863,7 +863,8 @@ async function saveRiskAction() {
     riskDialogVisible.value = false
     await fetchRiskActions()
   } catch (e) {
-    ElMessage.error(isEditRisk.value ? '修改失败' : '保存失败')
+    const errorMsg = e?.response?.data?.message || e?.message || (isEditRisk.value ? '修改失败' : '保存失败')
+    ElMessage.error(errorMsg)
   } finally {
     savingRisk.value = false
   }

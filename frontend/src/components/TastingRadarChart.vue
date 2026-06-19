@@ -108,7 +108,7 @@
             <div class="detail-header">
               <span class="detail-label">{{ axis.label }}</span>
               <div class="detail-score">
-                <el-rate v-model="scoreValues[idx]" disabled :max="5" />
+                <el-rate v-model="rateValues[idx]" disabled :max="5" />
                 <span class="detail-num">{{ displayValues[idx] }}分</span>
               </div>
             </div>
@@ -217,10 +217,10 @@ const center = chartSize / 2
 const radius = 120
 
 const axes = [
-  { key: 'aromaScore', label: '香气', max: 5 },
-  { key: 'liquorColorScore', label: '汤色', max: 5 },
-  { key: 'tasteScore', label: '滋味', max: 5 },
-  { key: 'aftertasteScore', label: '回甘', max: 5 },
+  { key: 'aromaScore', label: '香气', max: 100 },
+  { key: 'liquorColorScore', label: '汤色', max: 100 },
+  { key: 'tasteScore', label: '滋味', max: 100 },
+  { key: 'aftertasteScore', label: '回甘', max: 100 },
   { key: 'overallScore', label: '综合', max: 100 }
 ]
 
@@ -231,25 +231,22 @@ const scoreValues = computed(() => {
     currentNote.value.liquorColorScore || 0,
     currentNote.value.tasteScore || 0,
     currentNote.value.aftertasteScore || 0,
-    Math.round((currentNote.value.overallScore || 0) / 20)
+    currentNote.value.overallScore || 0
   ]
 })
 
 const displayValues = computed(() => {
-  if (!currentNote.value) return [0, 0, 0, 0, 0]
-  return [
-    currentNote.value.aromaScore || 0,
-    currentNote.value.liquorColorScore || 0,
-    currentNote.value.tasteScore || 0,
-    currentNote.value.aftertasteScore || 0,
-    currentNote.value.overallScore || 0
-  ]
+  return scoreValues.value
+})
+
+const rateValues = computed(() => {
+  return scoreValues.value.map(v => Math.round(v / 20))
 })
 
 const dataPointArray = computed(() => {
   return axes.map((axis, idx) => {
     const value = scoreValues.value[idx]
-    const maxValue = 5
+    const maxValue = axis.max
     const r = (value / maxValue) * radius
     return getAxisPoint(idx, r)
   })
@@ -298,9 +295,7 @@ function getHistoryLinePath(key) {
 }
 
 function getHistoryPointY(note, key) {
-  const value = key === 'overallScore' 
-    ? (note[key] || 0) 
-    : ((note[key] || 0) * 20)
+  const value = note[key] || 0
   const maxY = 140
   return maxY - (value / 100) * maxY
 }

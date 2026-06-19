@@ -435,8 +435,7 @@ function getLatestTastingValue(tea, key) {
 function getTastingBarWidth(tea, key) {
   const val = getLatestTastingValue(tea, key)
   if (val === '-') return 0
-  if (key === 'overallScore') return Math.min(100, val)
-  return Math.min(100, (val / 5) * 100)
+  return Math.min(100, Number(val))
 }
 
 function getInfusionTimeline(tea) {

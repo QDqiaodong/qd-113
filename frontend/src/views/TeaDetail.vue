@@ -345,24 +345,64 @@
               </div>
               <div class="tasting-scores">
                 <div class="score-item">
-                  <span class="score-label">香气</span>
-                  <el-rate v-model="note.aromaScore" disabled :max="5" />
-                  <span class="score-desc">{{ note.aromaDesc }}</span>
+                  <div class="score-item-header">
+                    <span class="score-label">香气</span>
+                    <span class="score-num" :style="{ color: getScoreColor(note.aromaScore) }">
+                      {{ note.aromaScore || 0 }}/100
+                    </span>
+                  </div>
+                  <el-progress
+                    :percentage="note.aromaScore || 0"
+                    :color="getScoreColor(note.aromaScore)"
+                    :stroke-width="6"
+                    :show-text="false"
+                  />
+                  <span class="score-desc" v-if="note.aromaDesc">{{ note.aromaDesc }}</span>
                 </div>
                 <div class="score-item">
-                  <span class="score-label">汤色</span>
-                  <el-rate v-model="note.liquorColorScore" disabled :max="5" />
-                  <span class="score-desc">{{ note.liquorColorDesc }}</span>
+                  <div class="score-item-header">
+                    <span class="score-label">汤色</span>
+                    <span class="score-num" :style="{ color: getScoreColor(note.liquorColorScore) }">
+                      {{ note.liquorColorScore || 0 }}/100
+                    </span>
+                  </div>
+                  <el-progress
+                    :percentage="note.liquorColorScore || 0"
+                    :color="getScoreColor(note.liquorColorScore)"
+                    :stroke-width="6"
+                    :show-text="false"
+                  />
+                  <span class="score-desc" v-if="note.liquorColorDesc">{{ note.liquorColorDesc }}</span>
                 </div>
                 <div class="score-item">
-                  <span class="score-label">口感</span>
-                  <el-rate v-model="note.tasteScore" disabled :max="5" />
-                  <span class="score-desc">{{ note.tasteDesc }}</span>
+                  <div class="score-item-header">
+                    <span class="score-label">口感</span>
+                    <span class="score-num" :style="{ color: getScoreColor(note.tasteScore) }">
+                      {{ note.tasteScore || 0 }}/100
+                    </span>
+                  </div>
+                  <el-progress
+                    :percentage="note.tasteScore || 0"
+                    :color="getScoreColor(note.tasteScore)"
+                    :stroke-width="6"
+                    :show-text="false"
+                  />
+                  <span class="score-desc" v-if="note.tasteDesc">{{ note.tasteDesc }}</span>
                 </div>
                 <div class="score-item">
-                  <span class="score-label">回甘</span>
-                  <el-rate v-model="note.aftertasteScore" disabled :max="5" />
-                  <span class="score-desc">{{ note.aftertasteDesc }}</span>
+                  <div class="score-item-header">
+                    <span class="score-label">回甘</span>
+                    <span class="score-num" :style="{ color: getScoreColor(note.aftertasteScore) }">
+                      {{ note.aftertasteScore || 0 }}/100
+                    </span>
+                  </div>
+                  <el-progress
+                    :percentage="note.aftertasteScore || 0"
+                    :color="getScoreColor(note.aftertasteScore)"
+                    :stroke-width="6"
+                    :show-text="false"
+                  />
+                  <span class="score-desc" v-if="note.aftertasteDesc">{{ note.aftertasteDesc }}</span>
                 </div>
               </div>
               <div v-if="note.overallScore" class="tasting-overall">
@@ -2120,20 +2160,34 @@ onUnmounted(() => {
 
 .score-item {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.score-item-header {
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
 }
 
 .score-label {
   font-size: 13px;
   color: #6c757d;
-  width: 36px;
   flex-shrink: 0;
+  font-weight: 500;
+}
+
+.score-num {
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .score-desc {
-  font-size: 13px;
+  font-size: 12px;
   color: #495057;
+  padding-left: 4px;
+  line-height: 1.4;
 }
 
 .tasting-overall {
